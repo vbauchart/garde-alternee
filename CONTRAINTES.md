@@ -38,9 +38,26 @@ respecter.
 
 - À la fin de l'année, le **total des jours** de Papa et de Maman doit rester
   **équitable**.
-- Baseline transcrite des PDF d'origine : **Papa 181 / Maman 184** (écart 3).
+- Baseline transcrite des PDF d'origine : Papa 181 / Maman 184 (écart 3).
+- État négocié actuel : **Papa 182 / Maman 183** (écart 1).
 - Cible : réduire l'écart au minimum sans casser les alignements de week-end.
-- Vérification : `python scripts/count_days.py`.
+- Vérification : `uv run python scripts/count_days.py`.
+
+### Échange négocié janvier / février
+
+Pour rééquilibrer (écart 3 → 1) tout en partageant équitablement les vacances
+d'hiver, deux bornes d'échange ont été décalées (toutes deux un mercredi 18h) :
+
+- **Janvier** : Papa garde jusqu'au **mercredi 6/01** (au lieu du 2/01). Maman
+  reprend le 7/01. → +4 jours pour Papa.
+- **Février** : Papa rend les enfants le **mercredi 3/02** (au lieu du 6/02).
+  Maman enchaîne du 4 au 13/02. → −3 jours pour Papa (+3 pour Maman).
+- Net : +1 jour pour Papa (182 / 183).
+
+## Partage des vacances d'hiver
+
+- **1ʳᵉ semaine (6–13/02)** : **Maman**.
+- **2ᵉ semaine (14–20/02)** : **Papa**.
 
 ## Zones de vacances
 
