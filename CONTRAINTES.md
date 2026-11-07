@@ -44,9 +44,11 @@ respecter.
 
 ## Zones de vacances
 
-- **Zone C (Paris)** : zone des enfants → c'est elle qui déclenche l'échange du
-  samedi. Fenêtres négociées listées dans le JSON.
-- **Zone B (Amiens)** : zone de Tierce → sert de référence pour ses disponibilités.
+- **Zone C (Paris)** : **zone de référence**. C'est elle qui définit les plages
+  de vacances **de tous les enfants** (ceux de Papa **et** ceux de Tierce) et qui
+  déclenche l'échange du samedi. Fenêtres listées dans le JSON.
+- **Zone B (Amiens)** : donnée **à titre purement indicatif** (elle n'intervient
+  pas dans les règles d'échange ni dans les disponibilités).
 
 ## Jours fériés 2027
 
