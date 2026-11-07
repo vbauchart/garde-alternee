@@ -34,6 +34,24 @@ respecter.
 - Le planning de **Tierce est fixe** : c'est Papa qui adapte ses semaines pour faire
   coïncider ses périodes libres avec celles de Tierce.
 
+## Planning de Tierce (fixe)
+
+- Semaines **lundi → lundi matin** (« fin matin » le lundi de reprise).
+- En vacances : Tierce récupère ses enfants le **dimanche 11h** et les rend le
+  lundi (ou le jour de reprise) le matin (« fin 08h » / « fin 10h »).
+- Jour férié le lundi : décalage au mardi (ex. reprise le mar. 18/05 après le
+  lundi de Pentecôte, fin le mar. 30/03 après le lundi de Pâques).
+- Données : `tierce_indisponible` (transcrit du PDF Papa & Tierce d'origine).
+
+## Week-ends libres à deux
+
+- **Calculés automatiquement** : un week-end est libre si, le samedi et le
+  dimanche, les enfants de Papa sont chez Maman (sans échange ce jour-là) et
+  Tierce n'est pas dans une de ses semaines.
+- `libres_supplementaires` : autres jours libres à afficher (jeudi 4/03).
+- Planning principal : **20 week-ends** (les 19 de l'original + le 6–7/02
+  gagné grâce à l'échange janvier/février).
+
 ## Contrainte d'équité
 
 - À la fin de l'année, le **total des jours** de Papa et de Maman doit rester
@@ -59,6 +77,34 @@ d'hiver, deux bornes d'échange ont été décalées (toutes deux un mercredi 18
 - **1ʳᵉ semaine (6–13/02)** : **Maman**.
 - **2ᵉ semaine (14–20/02)** : **Papa**.
 
+## Variante « lundi 11h » (proposition alternative)
+
+Fichier séparé : `data/planning_2027_lundi.json` → PDF suffixés `_lundi`.
+
+| Période | Jour d'échange | Heure | Jour compté pour |
+|---|---|---|---|
+| Scolaire | **Lundi** | 11h00 | le parent qui **reçoit** (il a les enfants l'après-midi) |
+| Vacances (zone C) | **Samedi** | 18h00 | le parent qui **rend** |
+
+- Semaines scolaires : alternance lundi 11h → lundi 11h.
+- Vacances : moitiés samedi 18h → samedi 18h sur les dates officielles zone C.
+  Les jours avant le début des vacances (lundi → samedi) restent au parent de
+  la semaine en cours ; la fin des vacances (dernier samedi 18h → reprise)
+  rejoint la semaine scolaire suivante, sauf contrainte de week-end.
+- Mêmes contraintes que le planning principal : planning de Tierce fixe, les 19
+  week-ends libres de l'original conservés, équité des jours.
+- Résultat : **Papa 183 / Maman 182** (écart 1), **20 week-ends libres à
+  deux** (les 19 de l'original + le 6–7/11).
+- Points à négocier :
+  - **Hiver** : Papa a la 1ʳᵉ semaine (6–13/02), Maman la 2ᵉ (13–20/02) —
+    inverse de l'échange négocié dans le planning principal.
+  - **Printemps** : Maman n'a qu'un week-end (sam. 17/04 18h → lun. 19/04 11h)
+    entre deux blocs de Papa. C'est imposé par le week-end libre du 3/04 et
+    les règles samedi/lundi ; l'alternative est un bloc de 16 jours pour Papa
+    (10 → 26/04).
+  - **Toussaint** : Papa du lun. 18/10 au sam. 30/10 (13 jours), Maman du
+    30/10 au lun. 8/11.
+
 ## Zones de vacances
 
 - **Zone C (Paris)** : **zone de référence**. C'est elle qui définit les plages
@@ -76,7 +122,8 @@ Noël (25/12).
 
 ## Fiabilité des données
 
-- `garde_segments` : **exact**, transcrit et vérifié depuis les PDF (181/184).
-- `tierce_indisponible` : **reconstruction** alignée sur les semaines de Papa. Le
-  planning réel de Tierce étant l'entrée fixe, corriger ici si une date diffère.
-- `vacances` / `feries` : calendrier de référence, à ajuster si besoin.
+- `garde_segments` : transcrit des PDF d'origine (181/184), puis négocié
+  (182/183).
+- `tierce_indisponible` : **exact**, transcrit du PDF Papa & Tierce d'origine.
+- `vacances` : dates reprises de l'ombrage du PDF d'origine (zones B et C).
+- `feries` : jours fériés 2027.

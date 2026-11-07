@@ -31,6 +31,10 @@ def main():
     ecart = abs(tp - tm)
     pct_p = 100 * tp / (tp + tm)
     print(f"Écart : {ecart} jour(s)  |  Papa {pct_p:.1f}% / Maman {100 - pct_p:.1f}%")
+    libres = c.jours_libres(data)
+    we = sorted(x for x in libres if x.weekday() == 5)
+    print(f"Week-ends libres à deux (Papa & Tierce) : {len(we)} — "
+          + ", ".join(f"{x:%d/%m}" for x in we))
 
     # Vérifications de cohérence
     manquants = [dt.date(annee, 1, 1) + dt.timedelta(days=i)

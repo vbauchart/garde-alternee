@@ -37,7 +37,14 @@ JOURS_FR = ["L", "M", "M", "J", "V", "S", "D"]  # lundi=0 .. dimanche=6
 
 # --- Chargement et modèle --------------------------------------------------
 
-def charger(path: Path = DATA) -> dict:
+def charger(path=None) -> dict:
+    """Charge un fichier de planning (par défaut data/planning_2027.json).
+
+    Usage en ligne de commande : le 1er argument éventuel est le chemin du JSON.
+    """
+    if path is None:
+        import sys
+        path = sys.argv[1] if len(sys.argv) > 1 else DATA
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -62,20 +69,79 @@ def ensemble_de_segments(segments) -> set:
     return set(jours_de_segments(segments).keys())
 
 
-def jours_echange(segments) -> dict:
-    """Jours d'échange = dernier jour de chaque segment (hors 31/12).
+JOURS_NOMS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 
-    Retourne {date: (parent_qui_rend, parent_qui_recoit)}.
+# Règles par défaut (variante historique) : échange à 18h, jour attribué à
+# celui qui rend les enfants.
+ECHANGES_DEFAUT = [
+    {"jour": "mercredi", "heure": "18h", "jour_attribue_a": "rend"},
+    {"jour": "samedi", "heure": "18h", "jour_attribue_a": "rend"},
+]
+
+
+def jours_echange(segments, regles=None) -> dict:
+    """Détecte les jours d'échange entre deux segments consécutifs.
+
+    Selon la règle applicable (regles["echanges"]) :
+      - « rend »   : l'échange a lieu le dernier jour du segment qui se termine
+                     (ex. mercredi/samedi 18h, jour compté pour celui qui rend) ;
+      - « recoit » : l'échange a lieu le premier jour du segment qui commence
+                     (ex. lundi 11h, jour compté pour celui qui reçoit).
+
+    Retourne {date: (parent_qui_rend, parent_qui_recoit, heure)}.
     """
+    echanges = (regles or {}).get("echanges", ECHANGES_DEFAUT)
+    recoit_jours = {e["jour"]: e["heure"] for e in echanges
+                    if e["jour_attribue_a"] == "recoit"}
+    rend_jours = {e["jour"]: e["heure"] for e in echanges
+                  if e["jour_attribue_a"] == "rend"}
     ech = {}
-    for i, seg in enumerate(segments):
-        fin = _d(seg["au"])
-        if fin == dt.date(fin.year, 12, 31):
-            continue  # fin d'année, pas un échange
-        rend = seg["parent"]
-        recoit = "maman" if rend == "papa" else "papa"
-        ech[fin] = (rend, recoit)
+    for seg, suiv in zip(segments, segments[1:]):
+        fin, debut = _d(seg["au"]), _d(suiv["du"])
+        rend, recoit = seg["parent"], suiv["parent"]
+        if JOURS_NOMS[debut.weekday()] in recoit_jours:
+            ech[debut] = (rend, recoit, recoit_jours[JOURS_NOMS[debut.weekday()]])
+        else:
+            ech[fin] = (rend, recoit, rend_jours.get(JOURS_NOMS[fin.weekday()], "18h"))
     return ech
+
+
+def jours_libres(data: dict) -> set:
+    """Jours « libres à deux » (Papa ET Tierce sans enfants toute la journée).
+
+    - Un week-end est libre si le samedi ET le dimanche sont libres pour les
+      deux : enfants chez Maman sans échange ce jour-là, et Tierce hors de ses
+      semaines (tierce_indisponible).
+    - « libres_supplementaires » : autres jours à afficher (ex. un jeudi),
+      retenus seulement s'ils sont effectivement libres pour les deux.
+    """
+    garde = jours_de_segments(data["garde_segments"])
+    ech = jours_echange(data["garde_segments"], data["regles"])
+    tierce = ensemble_de_segments(data["tierce_indisponible"])
+
+    def libre(x):
+        return garde.get(x) == "maman" and x not in ech and x not in tierce
+
+    res = set()
+    for x in garde:
+        dim = x + dt.timedelta(days=1)
+        if x.weekday() == 5 and libre(x) and libre(dim):
+            res |= {x, dim}
+    for s in data.get("libres_supplementaires", []):
+        if libre(_d(s)):
+            res.add(_d(s))
+    return res
+
+
+def libelles_tierce(data: dict) -> dict:
+    """Libellés des échanges de Tierce : {date: « dès 11h » / « fin matin »}."""
+    lab = {}
+    for seg in data["tierce_indisponible"]:
+        if seg.get("des"):
+            lab[_d(seg["du"])] = f"dès {seg['des']}"
+        if seg.get("fin"):
+            lab[_d(seg["au"])] = f"fin {seg['fin']}"
+    return lab
 
 
 def compter(data: dict) -> dict:
@@ -195,6 +261,11 @@ def dessiner_page(pdf, titre, mois_indices, annee, entetes_cols, remplir,
 
     pdf.savefig(fig)
     plt.close(fig)
+
+
+def nom_sortie(base: str, data: dict) -> str:
+    """Nom du PDF : base + suffixe de la variante (ex. « _lundi ») + .pdf."""
+    return f"{base}{data.get('suffixe', '')}.pdf"
 
 
 def nouvelle_sortie(nom) -> PdfPages:
