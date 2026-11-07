@@ -24,20 +24,22 @@ scripts/generate_papa_maman.py   -> planning_garde_2027_papa_maman.pdf
 scripts/generate_papa_tierce.py      -> planning_2027_papa_tierce.pdf
 scripts/count_days.py            Comptage des jours + contrôle d'équité
 CONTRAINTES.md                   Règles du planning
+pyproject.toml / uv.lock         Dépendances (gérées par uv)
 ```
 
 ## Utilisation
 
+Les dépendances et l'exécution sont gérées par [uv](https://docs.astral.sh/uv/).
+
 ```bash
-python -m venv .venv
-.venv/bin/pip install -r requirements.txt
+uv sync                                        # installe les dépendances
 
 # Comptage et vérification d'équité
-.venv/bin/python scripts/count_days.py
+uv run python scripts/count_days.py
 
 # (Re)génération des deux PDF après modification du JSON
-.venv/bin/python scripts/generate_papa_maman.py
-.venv/bin/python scripts/generate_papa_tierce.py
+uv run python scripts/generate_papa_maman.py
+uv run python scripts/generate_papa_tierce.py
 ```
 
 ## Modifier le planning
