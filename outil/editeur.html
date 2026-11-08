@@ -158,7 +158,7 @@
           <fieldset id="regleVacances"><legend>Échange pendant les vacances (zone C)</legend></fieldset>
           <fieldset>
             <legend>Variante</legend>
-            <label class="champ">Suffixe des PDF <input type="text" id="suffixe" placeholder="ex. _lundi"></label>
+            <label class="champ">Suffixe du fichier JSON (et des PDF) <input type="text" id="suffixe" placeholder="ex. _lundi"></label>
             <label class="champ">Titre de variante <input type="text" id="titreVariante" placeholder="ex. (variante lundi 11h)"></label>
           </fieldset>
         </div>
@@ -413,7 +413,7 @@ function rendreRegles(sc) {
 function rendreExport(sc) {
   const nom = nomFichier(sc.model);
   $("#nomExport").textContent = nom;
-  $("#commandes").textContent = ["count_days", "generate_papa_maman", "generate_papa_tierce"]
+  $("#commandes").textContent = ["count_days", "generate_pdf"]
     .map((s) => `uv run python scripts/${s}.py data/${nom}`).join("\n");
 }
 

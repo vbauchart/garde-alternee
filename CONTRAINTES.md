@@ -29,6 +29,8 @@ respecter.
 - **Attribution d'un jour d'échange** : le jour est compté pour le parent qui
   **rend** les enfants, c'est-à-dire celui qui les a gardés **jusqu'à 18h**.
   Exemple : un mercredi où Papa rend les enfants à 18h est compté « Papa ».
+- **Jour férié** : un échange qui tombe un jour férié est **reporté au
+  lendemain** (ex. sam. 25/12 Noël → échange le dim. 26/12 18h).
 - Pendant les vacances scolaires, on bascule sur un rythme **samedi → samedi
   18h** (quinzaines l'été).
 - Le planning de **Tierce est fixe** : c'est Papa qui adapte ses semaines pour faire

@@ -1,7 +1,7 @@
 """Fonctions partagées : chargement des données, calcul des gardes, rendu calendrier.
 
 La source de vérité est data/planning_2027.json. Les deux PDF sont dérivés
-de ce module (voir generate_papa_maman.py et generate_papa_tierce.py).
+de ce module (voir generate_pdf.py).
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ ECHANGES_DEFAUT = [
 ]
 
 
-def jours_echange(segments, regles=None) -> dict:
+def jours_echange(segments, regles=None, feries=()) -> dict:
     """Détecte les jours d'échange entre deux segments consécutifs.
 
     Selon la règle applicable (regles["echanges"]) :
@@ -88,8 +88,22 @@ def jours_echange(segments, regles=None) -> dict:
       - « recoit » : l'échange a lieu le premier jour du segment qui commence
                      (ex. lundi 11h, jour compté pour celui qui reçoit).
 
+    Un échange qui tombe un jour férié est reporté au lendemain (ex. samedi
+    25/12 férié -> échange le dimanche 26/12) : feries = dates fériées.
+
     Retourne {date: (parent_qui_rend, parent_qui_recoit, heure)}.
     """
+    feries = {_d(f["date"]) if isinstance(f, dict) else f for f in feries}
+
+    def jour_regle(x):
+        """Nom du jour de règle auquel x correspond (report férié compris)."""
+        if x in feries:
+            return None
+        veille = x - dt.timedelta(days=1)
+        if veille in feries:
+            return JOURS_NOMS[veille.weekday()]
+        return JOURS_NOMS[x.weekday()]
+
     echanges = (regles or {}).get("echanges", ECHANGES_DEFAUT)
     recoit_jours = {e["jour"]: e["heure"] for e in echanges
                     if e["jour_attribue_a"] == "recoit"}
@@ -99,10 +113,11 @@ def jours_echange(segments, regles=None) -> dict:
     for seg, suiv in zip(segments, segments[1:]):
         fin, debut = _d(seg["au"]), _d(suiv["du"])
         rend, recoit = seg["parent"], suiv["parent"]
-        if JOURS_NOMS[debut.weekday()] in recoit_jours:
-            ech[debut] = (rend, recoit, recoit_jours[JOURS_NOMS[debut.weekday()]])
+        jd = jour_regle(debut)
+        if jd in recoit_jours:
+            ech[debut] = (rend, recoit, recoit_jours[jd])
         else:
-            ech[fin] = (rend, recoit, rend_jours.get(JOURS_NOMS[fin.weekday()], "18h"))
+            ech[fin] = (rend, recoit, rend_jours.get(jour_regle(fin), "18h"))
     return ech
 
 
@@ -132,7 +147,7 @@ def jours_libres(data: dict) -> set:
     en a un ce jour) ET pour Tierce (nuits_tierce).
     """
     garde = jours_de_segments(data["garde_segments"])
-    ech = jours_echange(data["garde_segments"], data["regles"])
+    ech = jours_echange(data["garde_segments"], data["regles"], data.get("feries", []))
     tierce = nuits_tierce(data)
 
     def nuit_papa(x):
@@ -276,11 +291,6 @@ def dessiner_page(pdf, titre, mois_indices, annee, entetes_cols, remplir,
 
     pdf.savefig(fig)
     plt.close(fig)
-
-
-def nom_sortie(base: str, data: dict) -> str:
-    """Nom du PDF : base + suffixe de la variante (ex. « _lundi ») + .pdf."""
-    return f"{base}{data.get('suffixe', '')}.pdf"
 
 
 def nouvelle_sortie(nom) -> PdfPages:

@@ -8,9 +8,9 @@ Données et scripts pour construire, maintenir et imprimer le planning de garde
 Une **source de vérité unique** (`data/planning_2027.json`) décrit le planning de
 garde de Papa. Les **deux PDF sont dérivés** de ce fichier :
 
-- **`planning_garde_2027_papa_maman.pdf`** — document de négociation Papa /
+- **`papa_maman_<json>.pdf`** — document de négociation Papa /
   Maman : qui garde les enfants chaque jour + total des jours.
-- **`planning_2027_papa_tierce.pdf`** — disponibilité du couple Papa & Tierce : Papa
+- **`papa_tierce_<json>.pdf`** — disponibilité du couple Papa & Tierce : Papa
   s'aligne sur le planning (fixe) de Tierce pour maximiser les week-ends à deux.
 
 Les règles sont décrites dans [`CONTRAINTES.md`](CONTRAINTES.md).
@@ -20,8 +20,7 @@ Les règles sont décrites dans [`CONTRAINTES.md`](CONTRAINTES.md).
 ```
 data/planning_2027.json          Source de vérité (garde, Tierce, vacances, fériés)
 scripts/common.py                Chargement + calculs + rendu partagés
-scripts/generate_papa_maman.py   -> planning_garde_2027_papa_maman.pdf
-scripts/generate_papa_tierce.py      -> planning_2027_papa_tierce.pdf
+scripts/generate_pdf.py          -> papa_maman_<json>.pdf + papa_tierce_<json>.pdf
 scripts/count_days.py            Comptage des jours + contrôle d'équité
 CONTRAINTES.md                   Règles du planning
 pyproject.toml / uv.lock         Dépendances (gérées par uv)
@@ -37,22 +36,23 @@ uv sync                                        # installe les dépendances
 # Comptage et vérification d'équité
 uv run python scripts/count_days.py
 
-# (Re)génération des deux PDF après modification du JSON
-uv run python scripts/generate_papa_maman.py
-uv run python scripts/generate_papa_tierce.py
+# (Re)génération des deux PDF de chaque JSON de data/
+uv run python scripts/generate_pdf.py
 ```
 
 ### Variantes
 
-Chaque script accepte en argument le fichier JSON à utiliser (par défaut
-`data/planning_2027.json`). Une variante déclare dans son JSON un `suffixe`
-ajouté au nom des PDF, et ses propres règles d'échange (`regles.echanges`).
+Chaque variante est un JSON de `data/` avec ses propres règles d'échange
+(`regles.echanges`). Le **nom du JSON** sert de suffixe aux PDF :
+`data/planning_2027_lundi.json` → `papa_maman_planning_2027_lundi.pdf` et
+`papa_tierce_planning_2027_lundi.pdf`. `count_days.py` prend le JSON en argument
+(par défaut `data/planning_2027.json`), `generate_pdf.py` un ou plusieurs JSON
+(par défaut tous).
 
 ```bash
-# Variante « lundi 11h » -> *_lundi.pdf
-uv run python scripts/count_days.py         data/planning_2027_lundi.json
-uv run python scripts/generate_papa_maman.py data/planning_2027_lundi.json
-uv run python scripts/generate_papa_tierce.py    data/planning_2027_lundi.json
+# Variante « lundi 11h » seule
+uv run python scripts/count_days.py   data/planning_2027_lundi.json
+uv run python scripts/generate_pdf.py data/planning_2027_lundi.json
 ```
 
 ## Éditeur interactif
@@ -66,7 +66,7 @@ serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-dépos
   (Ctrl+Z / Ctrl+Y).
 - **Plages** : édition du/au/parent ; l'année reste toujours couverte.
 - **Règles & suggestion** : jour, heure et attribution des échanges (scolaire
-  et vacances), suffixe des PDF ; « Proposer un planning » calcule le meilleur
+  et vacances), suffixe du fichier JSON (donc des PDF) ; « Proposer un planning » calcule le meilleur
   planning selon ces règles (équité, longueur des blocs, week-ends libres avec
   Tierce, jours verrouillés) dans un nouveau scénario.
 - En direct : compteurs Papa/Maman (total, écart, par mois), nuits et
@@ -86,7 +86,7 @@ La logique (`outil/core.js`) reprend les mêmes règles que `scripts/common.py`
    plage est le jour d'échange, attribué à ce parent).
 2. `count_days.py` vérifie qu'aucun jour n'est en trou ni en double, affiche
    l'écart Papa/Maman, le nombre de nuits libres à deux et les week-ends libres.
-3. Régénérer les deux PDF.
+3. Régénérer les PDF (`generate_pdf.py`).
 
 Les nuits « libres à deux » (cases LIBRE = nuit du soir de ce jour au matin
 suivant) ne sont pas saisies : elles sont calculées à partir de la garde de Papa et du planning de Tierce (`tierce_indisponible`).

@@ -168,18 +168,34 @@
     return m.vacC.has(i) ? m.regles.vacances : m.regles.scolaire;
   }
 
-  /** Échanges : Map(jour -> {rend, recoit, heure, ok, attendu}). */
+  /**
+   * Règle d'échange valable le jour x, ou null. Un échange qui tombe un jour
+   * férié est reporté au lendemain (ex. samedi 25/12 -> dimanche 26/12).
+   */
+  function regleEchange(m, x) {
+    if (x < 0 || x >= m.cal.n) return null;
+    const r = regleDuJour(m, x);
+    if (m.cal.jour[x] === r.jour && !m.feries.has(x)) return r;
+    if (x > 0 && m.feries.has(x - 1)) {
+      const r0 = regleDuJour(m, x - 1);
+      if (m.cal.jour[x - 1] === r0.jour) return { ...r0, reporte: true };
+    }
+    return null;
+  }
+
+  /** Échanges : Map(jour -> {rend, recoit, heure, ok, attendu, reporte}). */
   function echanges(m) {
     const out = new Map();
     for (let d = 0; d + 1 < m.cal.n; d++) {
       const a = m.own[d], b = m.own[d + 1];
       if (a === b) continue;
-      const rS = regleDuJour(m, d + 1), rF = regleDuJour(m, d);
-      if (rS.attr === "recoit" && m.cal.jour[d + 1] === rS.jour) {
-        out.set(d + 1, { rend: a, recoit: b, heure: rS.heure, ok: true });
-      } else if (rF.attr === "rend" && m.cal.jour[d] === rF.jour) {
-        out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: true });
+      const rS = regleEchange(m, d + 1), rF = regleEchange(m, d);
+      if (rS && rS.attr === "recoit") {
+        out.set(d + 1, { rend: a, recoit: b, heure: rS.heure, ok: true, reporte: !!rS.reporte });
+      } else if (rF && rF.attr === "rend") {
+        out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: true, reporte: !!rF.reporte });
       } else {
+        const rF = regleDuJour(m, d);
         const attendu = `${m.vacC.has(d) ? "vacances" : "période scolaire"} : ${JOURS[rF.jour]} ${rF.heure}`;
         out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: false, attendu });
       }
@@ -305,8 +321,8 @@
   function atomes(m) {
     const cal = m.cal, bornes = [];
     for (let x = 1; x < cal.n; x++) {
-      const r = regleDuJour(m, x);
-      if (cal.jour[x] === r.jour) bornes.push({ jour: x, attr: r.attr });
+      const r = regleEchange(m, x);
+      if (r) bornes.push({ jour: x, attr: r.attr });
     }
     const at = [];
     for (let k = 0; k <= bornes.length; k++) {
