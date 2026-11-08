@@ -1,0 +1,392 @@
+/* Logique du planning de garde (sans interface).
+ *
+ * Même modèle que scripts/common.py : la garde est une liste de plages
+ * {du, au, parent} où chaque jour est attribué à un parent. Ce fichier est
+ * utilisé par editeur.html (navigateur) et testable avec node.
+ */
+(function (global) {
+  "use strict";
+
+  const JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+  const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet",
+    "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+  const PARENT = { P: "papa", M: "maman" };
+  const CODE = { papa: "P", maman: "M" };
+  const autre = (o) => (o === "P" ? "M" : "P");
+
+  // Règles par défaut (fichier principal sans regles.echanges)
+  const ECHANGES_DEFAUT = [
+    { jour: "mercredi", heure: "18h", jour_attribue_a: "rend" },
+    { jour: "samedi", heure: "18h", jour_attribue_a: "rend" },
+  ];
+
+  const OPTIONS_DEFAUT = {
+    blocMax: 10, blocMaxEte: 14, blocMin: 5,
+    poidsEquite: 40, bonusWeekend: 30, poidsAlignementTierce: 0.3,
+    garderLibres: true, utiliserVerrous: true,
+  };
+
+  // ---------- Dates (index de jour dans l'année, 0 = 1er janvier) ----------
+
+  function calendrier(annee) {
+    const n = (Date.UTC(annee + 1, 0, 1) - Date.UTC(annee, 0, 1)) / 86400000;
+    const iso = [], jour = [], mois = [], quantieme = [];
+    for (let i = 0; i < n; i++) {
+      const d = new Date(Date.UTC(annee, 0, 1 + i));
+      iso.push(d.toISOString().slice(0, 10));
+      jour.push((d.getUTCDay() + 6) % 7); // 0 = lundi
+      mois.push(d.getUTCMonth());
+      quantieme.push(d.getUTCDate());
+    }
+    const index = new Map(iso.map((s, i) => [s, i]));
+    return { annee, n, iso, jour, mois, quantieme, index };
+  }
+
+  function idx(cal, s) {
+    if (cal.index.has(s)) return cal.index.get(s);
+    return s < cal.iso[0] ? -1 : cal.n; // hors année
+  }
+
+  function plagesVersJours(cal, plages, valeur) {
+    const out = new Map();
+    for (const p of plages) {
+      const a = Math.max(0, idx(cal, p.du)), b = Math.min(cal.n - 1, idx(cal, p.au));
+      for (let i = a; i <= b; i++) out.set(i, valeur ? valeur(p) : true);
+    }
+    return out;
+  }
+
+  // ---------- Règles ----------
+
+  function heureNorm(h) {
+    if (!h) return "18h";
+    const m = String(h).match(/^(\d{1,2})(?::(\d{2}))?h?(\d{2})?$/);
+    if (!m) return String(h);
+    const mn = m[2] || m[3];
+    return `${parseInt(m[1], 10)}h${mn && mn !== "00" ? mn : ""}`;
+  }
+
+  /** regles du JSON -> {scolaire:{jour,heure,attr}, vacances:{...}} */
+  function lireRegles(regles) {
+    regles = regles || {};
+    const ech = regles.echanges || ECHANGES_DEFAUT;
+    const parJour = new Map(ech.map((e) => [e.jour, e]));
+    function regle(cle, defaut) {
+      const r = regles[cle] || {};
+      const jour = r.jour || defaut;
+      const e = parJour.get(jour) || {};
+      return {
+        jour: JOURS.indexOf(jour),
+        heure: heureNorm(r.heure || e.heure),
+        attr: e.jour_attribue_a || "rend",
+      };
+    }
+    return { scolaire: regle("echange_scolaire", "mercredi"), vacances: regle("echange_vacances", "samedi") };
+  }
+
+  function texteAttribution(r) {
+    const t = (x) => (x.attr === "recoit"
+      ? `celui qui les reçoit le ${JOURS[x.jour]} ${x.heure}`
+      : `celui qui les rend le ${JOURS[x.jour]} ${x.heure}`);
+    return `Le jour d'échange est attribué au parent qui a les enfants l'après-midi : ${t(r.scolaire)} (période scolaire), ${t(r.vacances)} (vacances).`;
+  }
+
+  function ecrireRegles(r, ancien) {
+    const s = r.scolaire, v = r.vacances;
+    const echanges = [{ jour: JOURS[s.jour], heure: s.heure, jour_attribue_a: s.attr }];
+    if (v.jour !== s.jour) echanges.push({ jour: JOURS[v.jour], heure: v.heure, jour_attribue_a: v.attr });
+    return Object.assign({}, ancien || {}, {
+      echange_scolaire: { jour: JOURS[s.jour], heure: s.heure },
+      echange_vacances: { jour: JOURS[v.jour], heure: v.heure },
+      attribution: texteAttribution(r),
+      echanges,
+    });
+  }
+
+  // ---------- Modèle ----------
+
+  /** Construit le modèle de travail à partir d'un JSON de planning. */
+  function charger(data) {
+    const cal = calendrier(data.annee);
+    const garde = plagesVersJours(cal, data.garde_segments, (p) => CODE[p.parent]);
+    const own = new Array(cal.n);
+    for (let i = 0; i < cal.n; i++) own[i] = garde.get(i) || null;
+    const vacC = new Set(plagesVersJours(cal, (data.vacances || {}).zone_c || []).keys());
+    const vacB = new Set(plagesVersJours(cal, (data.vacances || {}).zone_b || []).keys());
+    // plus longue période de vacances zone C = été (blocs plus longs autorisés)
+    let ete = new Set();
+    for (const p of (data.vacances || {}).zone_c || []) {
+      const s = new Set(plagesVersJours(cal, [p]).keys());
+      if (s.size > ete.size) ete = s;
+    }
+    const tierceBusy = new Set(plagesVersJours(cal, data.tierce_indisponible || []).keys());
+    const tierceLabels = new Map();
+    for (const p of data.tierce_indisponible || []) {
+      if (p.des) tierceLabels.set(idx(cal, p.du), `dès ${p.des}`);
+      if (p.fin) tierceLabels.set(idx(cal, p.au), `fin ${p.fin}`);
+    }
+    const feries = new Map((data.feries || []).map((f) => [idx(cal, f.date), f.nom]));
+    const extras = (data.libres_supplementaires || []).map((s) => idx(cal, s));
+    const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
+    return {
+      cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, tierceBusy, tierceLabels,
+      feries, extras, verrous, data,
+    };
+  }
+
+  function cloner(m) {
+    return Object.assign({}, m, { own: m.own.slice(), verrous: new Set(m.verrous),
+      regles: JSON.parse(JSON.stringify(m.regles)) });
+  }
+
+  function plages(m) {
+    const out = [];
+    for (let i = 0; i < m.cal.n; i++) {
+      const o = m.own[i];
+      const last = out[out.length - 1];
+      if (last && last.o === o && last.b === i - 1) last.b = i;
+      else out.push({ a: i, b: i, o });
+    }
+    return out.map((s) => ({ du: m.cal.iso[s.a], au: m.cal.iso[s.b], parent: PARENT[s.o] }));
+  }
+
+  /** JSON exportable (mêmes champs que l'original + garde/règles modifiées). */
+  function exporter(m, extra) {
+    const d = JSON.parse(JSON.stringify(m.data));
+    d.garde_segments = plages(m);
+    d.regles = ecrireRegles(m.regles, d.regles);
+    if (m.verrous.size) d.verrous = [...m.verrous].sort((a, b) => a - b).map((i) => m.cal.iso[i]);
+    else delete d.verrous;
+    return Object.assign(d, extra || {});
+  }
+
+  // ---------- Analyses ----------
+
+  function regleDuJour(m, i) {
+    return m.vacC.has(i) ? m.regles.vacances : m.regles.scolaire;
+  }
+
+  /** Échanges : Map(jour -> {rend, recoit, heure, ok, attendu}). */
+  function echanges(m) {
+    const out = new Map();
+    for (let d = 0; d + 1 < m.cal.n; d++) {
+      const a = m.own[d], b = m.own[d + 1];
+      if (a === b) continue;
+      const rS = regleDuJour(m, d + 1), rF = regleDuJour(m, d);
+      if (rS.attr === "recoit" && m.cal.jour[d + 1] === rS.jour) {
+        out.set(d + 1, { rend: a, recoit: b, heure: rS.heure, ok: true });
+      } else if (rF.attr === "rend" && m.cal.jour[d] === rF.jour) {
+        out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: true });
+      } else {
+        const attendu = `${m.vacC.has(d) ? "vacances" : "période scolaire"} : ${JOURS[rF.jour]} ${rF.heure}`;
+        out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: false, attendu });
+      }
+    }
+    return out;
+  }
+
+  function compter(m) {
+    const mois = MOIS.map(() => ({ P: 0, M: 0 }));
+    let P = 0, M = 0;
+    m.own.forEach((o, i) => { if (o) { mois[m.cal.mois[i]][o]++; if (o === "P") P++; else M++; } });
+    return { P, M, ecart: Math.abs(P - M), mois };
+  }
+
+  /** Jours libres à deux (Papa et Tierce sans enfants toute la journée). */
+  function libres(m, ech) {
+    ech = ech || echanges(m);
+    const libre = (i) => m.own[i] === "M" && !ech.has(i) && !m.tierceBusy.has(i);
+    const out = new Set();
+    for (let i = 0; i + 1 < m.cal.n; i++) {
+      if (m.cal.jour[i] === 5 && libre(i) && libre(i + 1)) { out.add(i); out.add(i + 1); }
+    }
+    for (const i of m.extras) if (i >= 0 && i < m.cal.n && libre(i)) out.add(i);
+    return out;
+  }
+
+  function blocs(m) {
+    const out = [];
+    for (let i = 0; i < m.cal.n; i++) {
+      const last = out[out.length - 1];
+      if (last && last.o === m.own[i]) { last.b = i; last.len++; }
+      else out.push({ a: i, b: i, o: m.own[i], len: 1 });
+    }
+    for (const bl of out) {
+      let e = 0;
+      for (let i = bl.a; i <= bl.b; i++) if (m.ete.has(i)) e++;
+      bl.ete = e * 2 > bl.len;
+    }
+    return out;
+  }
+
+  function nomJour(m, i) {
+    const c = m.cal;
+    return `${JOURS[c.jour[i]]} ${c.quantieme[i]} ${MOIS[c.mois[i]].toLowerCase()}`;
+  }
+
+  /** Alertes : échanges hors règle, blocs trop longs/courts, week-ends perdus. */
+  function alertes(m, opts, refLibres) {
+    opts = Object.assign({}, OPTIONS_DEFAUT, opts || {});
+    const out = [];
+    if (m.own.some((o) => !o)) out.push({ niveau: "erreur", jour: m.own.findIndex((o) => !o), msg: "Jour sans parent attribué." });
+    const ech = echanges(m);
+    for (const [d, e] of ech) {
+      if (!e.ok) out.push({ niveau: "erreur", jour: d,
+        msg: `Échange le ${nomJour(m, d)} hors règle (attendu ${e.attendu}).` });
+    }
+    const bl = blocs(m);
+    bl.forEach((b, k) => {
+      const max = b.ete ? opts.blocMaxEte : opts.blocMax;
+      const qui = b.o === "P" ? "Papa" : "Maman";
+      if (b.len > max) out.push({ niveau: "alerte", jour: b.a,
+        msg: `Bloc ${qui} de ${b.len} jours (${nomJour(m, b.a)} → ${nomJour(m, b.b)}), max ${max}.` });
+      if (b.len < opts.blocMin && k > 0 && k < bl.length - 1) out.push({ niveau: "alerte", jour: b.a,
+        msg: `Bloc ${qui} de ${b.len} jour(s) seulement (${nomJour(m, b.a)} → ${nomJour(m, b.b)}).` });
+    });
+    const lib = libres(m, ech);
+    if (refLibres) {
+      for (const i of refLibres) if (!lib.has(i) && (m.cal.jour[i] !== 6 || !refLibres.has(i - 1)))
+        out.push({ niveau: "alerte", jour: i, msg: `Jour libre à deux perdu : ${nomJour(m, i)}.` });
+    }
+    const c = compter(m);
+    if (c.ecart > 1) out.push({ niveau: "info", jour: null,
+      msg: `Écart de ${c.ecart} jours (Papa ${c.P} / Maman ${c.M}).` });
+    return out;
+  }
+
+  // ---------- Édition ----------
+
+  /** Bascule le jour d puis la suite du bloc jusqu'au prochain échange. */
+  function basculerDepuis(m, d) {
+    const o = m.own[d], n = autre(o);
+    for (let i = d; i < m.cal.n && m.own[i] === o; i++) m.own[i] = n;
+  }
+
+  function basculerJour(m, d) { m.own[d] = autre(m.own[d]); }
+
+  /** Remplace la garde par une liste de plages ; renvoie les erreurs. */
+  function appliquerPlages(m, liste) {
+    const cal = m.cal, own = new Array(cal.n).fill(null), err = [];
+    liste.forEach((p, k) => {
+      const a = idx(cal, p.du), b = idx(cal, p.au);
+      if (a < 0 || b >= cal.n || a > b) { err.push(`Plage ${k + 1} : dates invalides.`); return; }
+      for (let i = a; i <= b; i++) {
+        if (own[i]) err.push(`Plage ${k + 1} : chevauchement le ${nomJour(m, i)}.`);
+        own[i] = CODE[p.parent];
+      }
+    });
+    const trou = own.findIndex((o) => !o);
+    if (trou >= 0) err.push(`Jour non couvert : ${nomJour(m, trou)}.`);
+    if (!err.length) m.own = own;
+    return err.slice(0, 5);
+  }
+
+  // ---------- Suggestion automatique (programmation dynamique) ----------
+
+  /** Atomes = intervalles entre deux échanges possibles selon les règles. */
+  function atomes(m) {
+    const cal = m.cal, bornes = [];
+    for (let x = 1; x < cal.n; x++) {
+      const r = regleDuJour(m, x);
+      if (cal.jour[x] === r.jour) bornes.push({ jour: x, attr: r.attr });
+    }
+    const at = [];
+    for (let k = 0; k <= bornes.length; k++) {
+      const deb = k ? bornes[k - 1] : null, fin = bornes[k] || null;
+      const a = deb ? deb.jour : 0, b = fin ? fin.jour : cal.n - 1;
+      const jours = [], interieur = [];
+      for (let i = a; i <= b; i++) {
+        const surDeb = deb && i === a, surFin = fin && i === b;
+        if (!surDeb && !surFin) { jours.push(i); interieur.push(i); }
+        else if (surDeb && deb.attr === "recoit") jours.push(i);
+        else if (surFin && fin.attr === "rend") jours.push(i);
+      }
+      at.push({ a, b, deb: deb && deb.jour, jours, interieur: new Set(interieur) });
+    }
+    return at;
+  }
+
+  function coutBloc(n, ete, o) {
+    const hi = ete ? o.blocMaxEte : o.blocMax;
+    return Math.pow(Math.max(0, n - hi), 2) * 3 + Math.pow(Math.max(0, o.blocMin - n), 2) * 4;
+  }
+
+  /**
+   * Propose une garde complète selon les règles du modèle.
+   * Contraintes dures : jours verrouillés (gardent leur parent actuel) et,
+   * si demandé, jours libres à deux de référence (enfants chez Maman).
+   * Coût : longueur des blocs + équité + bonus week-ends libres à deux.
+   */
+  function suggerer(m, opts, refLibres) {
+    const o = Object.assign({}, OPTIONS_DEFAUT, opts || {});
+    const at = atomes(m), N = at.length, cal = m.cal;
+    const fix = new Array(N).fill(null);
+    at.forEach((t, i) => {
+      if (o.utiliserVerrous) for (const d of t.jours) if (m.verrous.has(d)) fix[i] = m.own[d];
+      if (o.garderLibres && refLibres) for (let d = t.a; d <= t.b; d++) if (refLibres.has(d)) fix[i] = "M";
+    });
+    const ete = at.map((t) => t.jours.length > 0 && t.jours.every((d) => m.ete.has(d)));
+    const tierceLibre = (d) => !m.tierceBusy.has(d);
+    // bonus week-end : dimanche dans [debut de l'atome, fin exclue)
+    function bonus(i, prev, cur) {
+      if (cur !== "M") return 0;
+      const t = at[i];
+      let b = 0;
+      for (let s = t.a; s < t.b || (i === N - 1 && s <= t.b); s++) {
+        if (cal.jour[s] !== 6 || s === 0) continue;
+        const sam = s - 1;
+        if (!tierceLibre(s) || !tierceLibre(sam)) continue;
+        const okJour = (d) => {
+          if (t.interieur.has(d)) return true;
+          if (d === t.deb) return prev === "M";
+          return prev === "M" && d < t.a; // samedi dans l'atome précédent
+        };
+        if (okJour(s) && okJour(sam)) b += o.bonusWeekend;
+      }
+      for (const d of t.interieur) if (cal.jour[d] === 5 && m.tierceBusy.has(d)) b -= o.poidsAlignementTierce;
+      return b;
+    }
+    // états : clé "o|run|ete|diff"
+    let couche = new Map([["-|0|0|0", { c: 0, prev: null, o: null }]]);
+    const hist = [];
+    for (let i = 0; i < N; i++) {
+      const suiv = new Map(), n = at[i].jours.length;
+      for (const [k, st] of couche) {
+        const [po, prs, pes, pds] = k.split("|");
+        const pr = +prs, pe = pes === "1", pd = +pds;
+        for (const cur of ["P", "M"]) {
+          if (fix[i] && fix[i] !== cur) continue;
+          const dd = cur === "P" ? n : -n;
+          let c = st.c - bonus(i, po, cur), run, e;
+          if (cur === po) { run = Math.min(pr + n, 40); e = pe || ete[i]; }
+          else { if (po !== "-") c += coutBloc(pr, pe, o); run = n; e = ete[i]; }
+          const key = `${cur}|${run}|${e ? 1 : 0}|${pd + dd}`;
+          const ex = suiv.get(key);
+          if (!ex || c < ex.c) suiv.set(key, { c, prev: k, o: cur });
+        }
+      }
+      hist.push(suiv);
+      couche = suiv;
+    }
+    let best = null, bestKey = null;
+    for (const [k, st] of couche) {
+      const [, rs, es, ds] = k.split("|");
+      const c = st.c + coutBloc(+rs, es === "1", o) + o.poidsEquite * Math.abs(+ds);
+      if (!best || c < best) { best = c; bestKey = k; }
+    }
+    if (bestKey === null) return null; // contraintes impossibles
+    const choix = new Array(N);
+    for (let i = N - 1, k = bestKey; i >= 0; i--) { const st = hist[i].get(k); choix[i] = st.o; k = st.prev; }
+    const res = cloner(m);
+    at.forEach((t, i) => { for (const d of t.jours) res.own[d] = choix[i]; });
+    return res;
+  }
+
+  const api = {
+    JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
+    lireRegles, ecrireRegles, heureNorm, echanges, compter, libres, blocs, alertes,
+    basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else global.Garde = api;
+})(typeof window !== "undefined" ? window : globalThis);

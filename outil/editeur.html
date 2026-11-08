@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Éditeur de garde 2027</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --ink: #1f2328; --muted: #6b7078; --line: #d9dbe0;
+    --papa: #9dc3e6; --maman: #f4b183; --tierce: #f8d3b6; --libre: #a9d18e; --libre-ink: #2f5a1c;
+    --vacC: #ffe699; --vacB: #b48fd0; --ferie: #f19c99; --accent: #2f6fb0;
+    --err: #c0392b; --warn: #b7791f; --info: #4a6fa5; --we: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c; --panel: #1f2228; --ink: #e6e8eb; --muted: #9aa0a8; --line: #343840;
+      --papa: #3f6f9c; --maman: #a8673c; --tierce: #6e4b33; --libre: #4f7f35; --libre-ink: #d8f0c8;
+      --vacC: #7a6620; --vacB: #7a5a96; --ferie: #9c4643; --accent: #79a9e0; --we: #262a31;
+      --err: #ff7b6b; --warn: #e2b04a; --info: #8fb1e3;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  button, select, input { font: inherit; color: inherit; }
+  button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primaire { background: var(--accent); color: #fff; border-color: var(--accent); }
+  select, input[type=text], input[type=number], input[type=date] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  .espace { flex: 1; }
+  main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { position: static !important; } }
+  aside { position: sticky; top: 64px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 80px); overflow: auto; }
+  .carte { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .carte h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
+  .totaux { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .total { border-radius: 8px; padding: 8px; text-align: center; }
+  .total b { display: block; font-size: 26px; }
+  .total.p { background: var(--papa); } .total.m { background: var(--maman); }
+  .ligne { display: flex; justify-content: space-between; margin-top: 8px; }
+  .barre { height: 8px; border-radius: 4px; overflow: hidden; display: flex; margin-top: 6px; }
+  .barre span:first-child { background: var(--papa); } .barre span:last-child { background: var(--maman); }
+  table.mois-recap { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  table.mois-recap td { padding: 1px 4px; text-align: right; } table.mois-recap td:first-child { text-align: left; color: var(--muted); }
+  .bon { color: var(--libre-ink); font-weight: 600; } .mauvais { color: var(--err); font-weight: 600; }
+  #alertes ul { list-style: none; margin: 0; padding: 0; }
+  #alertes li { padding: 5px 6px; border-left: 3px solid; margin-bottom: 4px; border-radius: 3px; background: var(--we); cursor: pointer; font-size: 13px; }
+  #alertes li.erreur { border-color: var(--err); } #alertes li.alerte { border-color: var(--warn); } #alertes li.info { border-color: var(--info); cursor: default; }
+  .onglets { display: flex; gap: 4px; margin-bottom: 12px; }
+  .onglets button { border-radius: 6px 6px 0 0; }
+  .onglets button.actif { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .aide { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 12px; }
+  .calendrier { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .mois { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .mois h3 { margin: 0; padding: 5px; text-align: center; background: #404040; color: #fff; font-size: 13px; }
+  .mois table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
+  .mois th { font-weight: 600; color: var(--muted); font-size: 10px; padding: 2px; }
+  .mois td { border-top: 1px solid var(--line); height: 19px; padding: 0 2px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mois tr.jour { cursor: pointer; } .mois tr.jour:hover td { filter: brightness(.93); }
+  .mois td.j { text-align: left; padding-left: 4px; width: 46px; }
+  .mois tr.we td.j { background: var(--we); font-weight: 700; }
+  .mois td.vac { width: 22px; }
+  td.p { background: var(--papa); } td.m { background: var(--maman); } td.v { background: var(--tierce); }
+  td.libre { background: var(--libre); color: var(--libre-ink); font-weight: 600; }
+  td.vacC { background: var(--vacC); } td.ferie { background: var(--ferie); }
+  td.vacB { box-shadow: inset 4px 0 0 var(--vacB); }
+  td.horsregle { outline: 2px solid var(--err); outline-offset: -2px; }
+  .modifie::before { content: "•"; color: var(--accent); margin-right: 2px; }
+  .verrou::after { content: " 🔒"; font-size: 9px; }
+  tr.flash td { animation: flash 1.2s ease-out 2; }
+  @keyframes flash { 50% { background: var(--accent); color: #fff; } }
+  .vide { text-align: center; padding: 60px 20px; border: 2px dashed var(--line); border-radius: 12px; color: var(--muted); }
+  .vide b { color: var(--ink); }
+  table.plages { border-collapse: collapse; width: 100%; max-width: 760px; background: var(--panel); }
+  table.plages th, table.plages td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+  table.plages td.n { color: var(--muted); text-align: right; }
+  table.plages tr.P td:first-child { box-shadow: inset 5px 0 0 var(--papa); }
+  table.plages tr.M td:first-child { box-shadow: inset 5px 0 0 var(--maman); }
+  .erreurs { color: var(--err); margin: 8px 0; }
+  .grille-regles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; max-width: 900px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+  legend { font-weight: 600; padding: 0 4px; }
+  label.champ { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; }
+  label.champ input[type=number] { width: 70px; }
+  code.cmd { display: block; background: var(--we); padding: 6px 8px; border-radius: 6px; margin: 4px 0; font-size: 12px; overflow-x: auto; white-space: pre; }
+  .legende { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .legende i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+  .cache { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Éditeur de garde 2027</h1>
+  <select id="selScenario" title="Scénario"></select>
+  <button id="btnDupliquer" title="Copier le scénario pour tester une option">Dupliquer</button>
+  <button id="btnRenommer">Renommer</button>
+  <button id="btnSupprimer">Supprimer</button>
+  <span class="espace"></span>
+  <button id="btnAnnuler" title="Ctrl+Z">↶ Annuler</button>
+  <button id="btnRetablir" title="Ctrl+Y">↷ Rétablir</button>
+  <button id="btnImporter">Ouvrir des JSON…</button>
+  <button id="btnExporter" class="primaire">Exporter le JSON</button>
+  <input type="file" id="fichier" accept=".json,application/json" multiple class="cache">
+</header>
+
+<main>
+  <aside>
+    <div class="carte" id="resume"></div>
+    <div class="carte" id="alertes"><h2>Alertes</h2><ul></ul></div>
+  </aside>
+
+  <section>
+    <div id="vide" class="vide">
+      <p><b>Ouvre un ou plusieurs fichiers de planning</b><br>
+      (ex. <code>data/planning_2027.json</code> et <code>data/planning_2027_lundi.json</code>)<br>
+      avec le bouton « Ouvrir des JSON… » ou en les glissant dans cette fenêtre.</p>
+      <p>Chaque fichier devient un scénario. Les scénarios sont gardés dans ce navigateur ;
+      « Exporter le JSON » produit le fichier à remettre dans <code>data/</code>.</p>
+    </div>
+
+    <div id="espace" class="cache">
+      <div class="onglets">
+        <button data-onglet="calendrier" class="actif">Calendrier</button>
+        <button data-onglet="plages">Plages</button>
+        <button data-onglet="regles">Règles &amp; suggestion</button>
+        <button data-onglet="export">Export &amp; PDF</button>
+      </div>
+
+      <div id="onglet-calendrier">
+        <p class="aide"><kbd>Clic</kbd> sur un jour : il passe à l'autre parent jusqu'au prochain échange (déplace l'échange) ·
+          <kbd>Maj</kbd>+clic : ce jour seulement · <kbd>Ctrl</kbd>+clic : verrouiller/déverrouiller le jour (🔒, respecté par la suggestion) ·
+          <span class="modifie"></span> = différent de la référence.</p>
+        <div class="legende">
+          <span><i style="background:var(--papa)"></i>Papa</span>
+          <span><i style="background:var(--maman)"></i>Maman</span>
+          <span><i style="background:var(--tierce)"></i>Tierce avec ses enfants</span>
+          <span><i style="background:var(--libre)"></i>Libres à deux</span>
+          <span><i style="background:var(--vacC)"></i>Vacances zone C</span>
+          <span><i style="background:var(--vacB)"></i>Zone B (indicatif)</span>
+          <span><i style="background:var(--ferie)"></i>Férié</span>
+        </div>
+        <div id="calendrier" class="calendrier"></div>
+      </div>
+
+      <div id="onglet-plages" class="cache">
+        <p class="aide">Chaque ligne est une période chez un parent (le jour d'échange est compté selon les règles).
+          Modifier la fin d'une plage décale le début de la suivante (et inversement) : l'année reste toujours couverte.</p>
+        <div id="erreursPlages" class="erreurs"></div>
+        <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Chez</th><th>Jours</th><th></th></tr></thead><tbody id="plages"></tbody></table>
+      </div>
+
+      <div id="onglet-regles" class="cache">
+        <div class="grille-regles">
+          <fieldset id="regleScolaire"><legend>Échange en période scolaire</legend></fieldset>
+          <fieldset id="regleVacances"><legend>Échange pendant les vacances (zone C)</legend></fieldset>
+          <fieldset>
+            <legend>Variante</legend>
+            <label class="champ">Suffixe des PDF <input type="text" id="suffixe" placeholder="ex. _lundi"></label>
+            <label class="champ">Titre de variante <input type="text" id="titreVariante" placeholder="ex. (variante lundi 11h)"></label>
+          </fieldset>
+        </div>
+        <p class="aide" style="margin-top:12px">Changer une règle met à jour les libellés et les alertes, sans modifier les jours.
+          Pour reconstruire un planning conforme aux nouvelles règles, utilise la suggestion ci-dessous.</p>
+        <div class="grille-regles">
+          <fieldset id="optionsSuggestion"><legend>Suggestion automatique</legend></fieldset>
+          <fieldset>
+            <legend>Verrous</legend>
+            <p class="aide">Les jours verrouillés gardent leur parent actuel dans la suggestion (<kbd>Ctrl</kbd>+clic dans le calendrier).</p>
+            <p><span id="nbVerrous"></span></p>
+            <button id="btnVerrouEte">Verrouiller l'été actuel</button>
+            <button id="btnDeverrouiller">Tout déverrouiller</button>
+          </fieldset>
+        </div>
+        <p><button id="btnSuggerer" class="primaire">Proposer un planning</button>
+          <span class="aide" id="resultatSuggestion"></span></p>
+      </div>
+
+      <div id="onglet-export" class="cache">
+        <div class="carte" style="max-width:760px">
+          <h2>Exporter et générer les PDF</h2>
+          <p>1. « Exporter le JSON » télécharge <b id="nomExport"></b>.<br>
+             2. Place-le dans le dossier <code>data/</code> du dépôt.<br>
+             3. Génère les PDF :</p>
+          <code class="cmd" id="commandes"></code>
+          <p><button id="btnCopier">Copier les commandes</button></p>
+          <p class="aide">Référence de comparaison (points « • » et week-ends perdus) :
+            l'état du scénario à son ouverture. <button id="btnReference">Prendre l'état actuel comme référence</button></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="core.js"></script>
+<script>
+"use strict";
+const G = window.Garde;
+const CLE = "garde-alternee.scenarios.v1";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const etat = { scenarios: [], courant: null, onglet: "calendrier", options: Object.assign({}, G.OPTIONS_DEFAUT) };
+
+// ---------------- Scénarios ----------------
+
+function nouveauScenario(nom, data, ref) {
+  const model = G.charger(data);
+  const sc = { id: Math.random().toString(36).slice(2), nom, model, undo: [], redo: [] };
+  definirReference(sc, ref);
+  return sc;
+}
+function definirReference(sc, ref) {
+  if (ref) { sc.refOwn = ref.own.slice(); sc.refLibres = new Set(ref.libres); return; }
+  sc.refOwn = sc.model.own.slice();
+  sc.refLibres = G.libres(sc.model);
+}
+const courant = () => etat.scenarios.find((s) => s.id === etat.courant);
+
+function slug(s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""); }
+
+function sauver() {
+  try {
+    localStorage.setItem(CLE, JSON.stringify({
+      courant: etat.courant, options: etat.options,
+      scenarios: etat.scenarios.map((s) => ({ id: s.id, nom: s.nom, data: G.exporter(s.model),
+        refOwn: s.refOwn, refLibres: [...s.refLibres] })),
+    }));
+  } catch (e) { /* stockage indisponible : on continue sans */ }
+}
+function restaurer() {
+  try {
+    const raw = localStorage.getItem(CLE);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    Object.assign(etat.options, o.options || {});
+    for (const s of o.scenarios || []) {
+      const sc = nouveauScenario(s.nom, s.data, { own: s.refOwn, libres: s.refLibres });
+      sc.id = s.id;
+      etat.scenarios.push(sc);
+    }
+    etat.courant = o.courant;
+    if (!courant() && etat.scenarios.length) etat.courant = etat.scenarios[0].id;
+  } catch (e) { etat.scenarios = []; }
+}
+
+// ---------------- Modifications (avec annulation) ----------------
+
+function instantane(m) { return { own: m.own.slice(), verrous: [...m.verrous], regles: JSON.stringify(m.regles), data: JSON.stringify(m.data) }; }
+function restaurerInstantane(m, s) { m.own = s.own.slice(); m.verrous = new Set(s.verrous); m.regles = JSON.parse(s.regles); m.data = JSON.parse(s.data); }
+
+function modifier(fn) {
+  const sc = courant(); if (!sc) return;
+  sc.undo.push(instantane(sc.model)); if (sc.undo.length > 200) sc.undo.shift();
+  sc.redo = [];
+  fn(sc.model);
+  rendre(); sauver();
+}
+function annuler() { const sc = courant(); if (!sc || !sc.undo.length) return; sc.redo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.undo.pop()); rendre(); sauver(); }
+function retablir() { const sc = courant(); if (!sc || !sc.redo.length) return; sc.undo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.redo.pop()); rendre(); sauver(); }
+
+// ---------------- Import / export ----------------
+
+async function importer(fichiers) {
+  let dernier = null;
+  for (const f of fichiers) {
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data.garde_segments || !data.annee) throw new Error("ce n'est pas un fichier de planning");
+      const nom = data.variante ? `Variante ${data.variante}` : (data.suffixe ? f.name.replace(/\.json$/, "") : "Planning principal");
+      const sc = nouveauScenario(nom, data);
+      etat.scenarios.push(sc); dernier = sc;
+    } catch (e) { alert(`${f.name} : ${e.message}`); }
+  }
+  if (dernier) { etat.courant = dernier.id; rendre(); sauver(); }
+}
+function nomFichier(m) { return `planning_${m.data.annee}${m.data.suffixe || ""}.json`; }
+function exporter() {
+  const sc = courant(); if (!sc) return;
+  const blob = new Blob([JSON.stringify(G.exporter(sc.model), null, 2) + "\n"], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = nomFichier(sc.model);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------------- Rendu ----------------
+
+function rendre() {
+  const sc = courant();
+  const sel = $("#selScenario");
+  sel.innerHTML = etat.scenarios.map((s) => `<option value="${s.id}"${s.id === etat.courant ? " selected" : ""}>${esc(s.nom)}</option>`).join("");
+  for (const b of ["#btnDupliquer", "#btnRenommer", "#btnSupprimer", "#btnExporter"]) $(b).disabled = !sc;
+  $("#btnAnnuler").disabled = !sc || !sc.undo.length;
+  $("#btnRetablir").disabled = !sc || !sc.redo.length;
+  sel.disabled = !etat.scenarios.length;
+  $("#vide").classList.toggle("cache", !!sc);
+  $("#espace").classList.toggle("cache", !sc);
+  if (!sc) { $("#resume").innerHTML = "<h2>Résumé</h2><p class='aide'>Aucun scénario.</p>"; $("#alertes ul").innerHTML = ""; return; }
+  const m = sc.model, ech = G.echanges(m), lib = G.libres(m, ech);
+  rendreResume(sc, lib);
+  rendreAlertes(sc);
+  for (const o of ["calendrier", "plages", "regles", "export"]) $(`#onglet-${o}`).classList.toggle("cache", etat.onglet !== o);
+  document.querySelectorAll(".onglets button").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === etat.onglet));
+  if (etat.onglet === "calendrier") rendreCalendrier(sc, ech, lib);
+  if (etat.onglet === "plages") rendrePlages(sc);
+  if (etat.onglet === "regles") rendreRegles(sc);
+  if (etat.onglet === "export") rendreExport(sc);
+}
+
+function rendreResume(sc, lib) {
+  const m = sc.model, c = G.compter(m);
+  const nWe = [...lib].filter((i) => m.cal.jour[i] === 5).length;
+  const nRef = [...sc.refLibres].filter((i) => m.cal.jour[i] === 5).length;
+  const refC = { P: sc.refOwn.filter((o) => o === "P").length };
+  const delta = c.P - refC.P;
+  $("#resume").innerHTML = `
+    <h2>${esc(sc.nom)}</h2>
+    <div class="totaux">
+      <div class="total p">Papa<b>${c.P}</b></div>
+      <div class="total m">Maman<b>${c.M}</b></div>
+    </div>
+    <div class="barre"><span style="width:${100 * c.P / (c.P + c.M)}%"></span><span style="flex:1"></span></div>
+    <div class="ligne"><span>Écart</span><span class="${c.ecart <= 1 ? "bon" : "mauvais"}">${c.ecart} jour${c.ecart > 1 ? "s" : ""}</span></div>
+    <div class="ligne"><span>vs référence (Papa)</span><span>${delta > 0 ? "+" : ""}${delta}</span></div>
+    <div class="ligne"><span>Week-ends libres à deux</span><span class="${nWe >= nRef ? "bon" : "mauvais"}">${nWe} <small>(réf. ${nRef})</small></span></div>
+    <table class="mois-recap"><tr><td></td><td><b>Papa</b></td><td><b>Maman</b></td></tr>
+      ${c.mois.map((x, i) => `<tr><td>${G.MOIS[i]}</td><td>${x.P}</td><td>${x.M}</td></tr>`).join("")}</table>`;
+}
+
+function rendreAlertes(sc) {
+  const al = G.alertes(sc.model, etat.options, sc.refLibres);
+  const ul = $("#alertes ul");
+  ul.innerHTML = al.length ? al.map((a) => `<li class="${a.niveau}" data-jour="${a.jour ?? ""}">${esc(a.msg)}</li>`).join("")
+    : `<li class="info">Aucune alerte.</li>`;
+}
+
+function rendreCalendrier(sc, ech, lib) {
+  const m = sc.model, cal = m.cal;
+  let html = "";
+  for (let mo = 0; mo < 12; mo++) {
+    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col><col style="width:22px"></colgroup>
+      <tr><th></th><th>Papa</th><th>Maman</th><th>Tierce</th><th>C</th></tr>`;
+    for (let i = 0; i < cal.n; i++) {
+      if (cal.mois[i] !== mo) continue;
+      const o = m.own[i], e = ech.get(i), we = cal.jour[i] >= 5;
+      let p = o === "P" ? "p" : "", ma = o === "M" ? "m" : "", pt = "", mt = "";
+      if (e) {
+        p = "p"; ma = "m";
+        const lab = { [e.rend]: `fin ${e.heure}`, [e.recoit]: `dès ${e.heure}` };
+        pt = lab.P; mt = lab.M;
+        if (!e.ok) { p += " horsregle"; ma += " horsregle"; }
+      }
+      let tierce = "", vt = "";
+      if (lib.has(i)) { tierce = "libre"; vt = "LIBRE"; }
+      else if (m.tierceBusy.has(i)) { tierce = "v"; vt = m.tierceLabels.get(i) || ""; }
+      let vac = m.feries.has(i) ? "ferie" : (m.vacC.has(i) ? "vacC" : "");
+      if (m.vacB.has(i)) vac += " vacB";
+      const titreVac = m.feries.get(i) || "";
+      const jcls = (o !== sc.refOwn[i] ? "modifie" : "") + (m.verrous.has(i) ? " verrou" : "");
+      html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${jcls}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
+        <td class="${p}">${pt}</td><td class="${ma}">${mt}</td><td class="${tierce}">${esc(vt)}</td><td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
+    }
+    html += `</table></div>`;
+  }
+  $("#calendrier").innerHTML = html;
+}
+
+function rendrePlages(sc) {
+  const pl = G.plages(sc.model);
+  const nb = (p) => (Date.parse(p.au) - Date.parse(p.du)) / 86400000 + 1;
+  $("#plages").innerHTML = pl.map((p, k) => `<tr class="${p.parent === "papa" ? "P" : "M"}" data-k="${k}">
+      <td><input type="date" data-champ="du" value="${p.du}"${k === 0 ? " disabled" : ""}></td>
+      <td><input type="date" data-champ="au" value="${p.au}"${k === pl.length - 1 ? " disabled" : ""}></td>
+      <td><select data-champ="parent"><option value="papa"${p.parent === "papa" ? " selected" : ""}>Papa</option><option value="maman"${p.parent === "maman" ? " selected" : ""}>Maman</option></select></td>
+      <td class="n">${nb(p)}</td>
+      <td><button data-action="couper" title="Couper la plage en deux">Couper</button>
+          <button data-action="suppr" title="Fusionner avec la plage précédente"${k === 0 ? " disabled" : ""}>Supprimer</button></td></tr>`).join("");
+}
+
+function champRegle(id, r) {
+  const fs = $(id);
+  fs.querySelectorAll("label").forEach((l) => l.remove());
+  fs.insertAdjacentHTML("beforeend", `
+    <label class="champ">Jour <select data-r="jour">${G.JOURS.map((j, i) => `<option value="${i}"${i === r.jour ? " selected" : ""}>${j}</option>`).join("")}</select></label>
+    <label class="champ">Heure <input type="text" data-r="heure" value="${esc(r.heure)}" size="6"></label>
+    <label class="champ">Le jour d'échange compte pour <select data-r="attr">
+      <option value="rend"${r.attr === "rend" ? " selected" : ""}>celui qui rend</option>
+      <option value="recoit"${r.attr === "recoit" ? " selected" : ""}>celui qui reçoit</option></select></label>`);
+}
+
+const OPTS = [
+  ["blocMax", "Bloc max hors été (jours)"], ["blocMaxEte", "Bloc max l'été (jours)"], ["blocMin", "Bloc min (jours)"],
+  ["poidsEquite", "Poids de l'équité (par jour d'écart)"], ["bonusWeekend", "Bonus par week-end libre à deux"],
+];
+function rendreRegles(sc) {
+  const m = sc.model;
+  champRegle("#regleScolaire", m.regles.scolaire);
+  champRegle("#regleVacances", m.regles.vacances);
+  $("#suffixe").value = m.data.suffixe || "";
+  $("#titreVariante").value = m.data.titre_variante || "";
+  const fs = $("#optionsSuggestion");
+  fs.querySelectorAll("label").forEach((l) => l.remove());
+  fs.insertAdjacentHTML("beforeend", OPTS.map(([k, t]) => `<label class="champ">${t} <input type="number" min="0" data-opt="${k}" value="${etat.options[k]}"></label>`).join("") +
+    `<label class="champ">Garder les jours libres à deux de la référence <input type="checkbox" data-opt="garderLibres"${etat.options.garderLibres ? " checked" : ""}></label>
+     <label class="champ">Respecter les jours verrouillés <input type="checkbox" data-opt="utiliserVerrous"${etat.options.utiliserVerrous ? " checked" : ""}></label>`);
+  $("#nbVerrous").textContent = `${m.verrous.size} jour(s) verrouillé(s).`;
+}
+
+function rendreExport(sc) {
+  const nom = nomFichier(sc.model);
+  $("#nomExport").textContent = nom;
+  $("#commandes").textContent = ["count_days", "generate_papa_maman", "generate_papa_tierce"]
+    .map((s) => `uv run python scripts/${s}.py data/${nom}`).join("\n");
+}
+
+function flash(i) {
+  if (i === "" || i == null) return;
+  if (etat.onglet !== "calendrier") { etat.onglet = "calendrier"; rendre(); }
+  const tr = document.querySelector(`tr[data-i="${i}"]`);
+  if (!tr) return;
+  tr.scrollIntoView({ behavior: "smooth", block: "center" });
+  tr.classList.remove("flash"); void tr.offsetWidth; tr.classList.add("flash");
+}
+
+// ---------------- Événements ----------------
+
+$("#calendrier").addEventListener("click", (ev) => {
+  const tr = ev.target.closest("tr.jour"); if (!tr) return;
+  const i = +tr.dataset.i;
+  if (ev.ctrlKey || ev.metaKey) modifier((m) => { m.verrous.has(i) ? m.verrous.delete(i) : m.verrous.add(i); });
+  else if (ev.shiftKey) modifier((m) => G.basculerJour(m, i));
+  else modifier((m) => G.basculerDepuis(m, i));
+});
+
+$("#plages").addEventListener("change", (ev) => {
+  const el = ev.target, k = +el.closest("tr").dataset.k, champ = el.dataset.champ;
+  const sc = courant(), pl = G.plages(sc.model);
+  const jour = (s, n) => { const d = new Date(Date.parse(s) + n * 86400000); return d.toISOString().slice(0, 10); };
+  pl[k][champ] = el.value;
+  if (champ === "au" && pl[k + 1]) pl[k + 1].du = jour(el.value, 1);
+  if (champ === "du" && pl[k - 1]) pl[k - 1].au = jour(el.value, -1);
+  // une plage écrasée par sa voisine disparaît
+  const liste = pl.filter((p) => p.du <= p.au);
+  for (let j = 1; j < liste.length; j++) if (liste[j].du <= liste[j - 1].au) liste[j].du = jour(liste[j - 1].au, 1);
+  const err = G.appliquerPlages(G.cloner(sc.model), liste);
+  $("#erreursPlages").textContent = err.join(" ");
+  if (!err.length) modifier((m) => G.appliquerPlages(m, liste));
+});
+$("#plages").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button"); if (!b) return;
+  const k = +b.closest("tr").dataset.k, sc = courant(), pl = G.plages(sc.model);
+  const jour = (s, n) => new Date(Date.parse(s) + n * 86400000).toISOString().slice(0, 10);
+  if (b.dataset.action === "suppr") { pl[k - 1].au = pl[k].au; pl.splice(k, 1); }
+  if (b.dataset.action === "couper") {
+    const p = pl[k], n = (Date.parse(p.au) - Date.parse(p.du)) / 86400000 + 1;
+    if (n < 2) return;
+    const mil = jour(p.du, Math.floor(n / 2) - 1);
+    pl.splice(k + 1, 0, { du: jour(mil, 1), au: p.au, parent: p.parent === "papa" ? "maman" : "papa" });
+    p.au = mil;
+  }
+  modifier((m) => G.appliquerPlages(m, pl));
+});
+
+function lireRegle(id) {
+  const fs = $(id), v = (k) => fs.querySelector(`[data-r="${k}"]`).value;
+  return { jour: +v("jour"), heure: G.heureNorm(v("heure")), attr: v("attr") };
+}
+$("#onglet-regles").addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (t.dataset.r) modifier((m) => { m.regles = { scolaire: lireRegle("#regleScolaire"), vacances: lireRegle("#regleVacances") }; });
+  if (t.id === "suffixe") modifier((m) => { m.data.suffixe = t.value.trim(); });
+  if (t.id === "titreVariante") modifier((m) => { m.data.titre_variante = t.value; });
+  if (t.dataset.opt) {
+    etat.options[t.dataset.opt] = t.type === "checkbox" ? t.checked : +t.value;
+    rendre(); sauver();
+  }
+});
+$("#btnVerrouEte").addEventListener("click", () => modifier((m) => { for (const i of m.ete) m.verrous.add(i); }));
+$("#btnDeverrouiller").addEventListener("click", () => modifier((m) => m.verrous.clear()));
+$("#btnSuggerer").addEventListener("click", () => {
+  const sc = courant(); if (!sc) return;
+  const t0 = performance.now();
+  const res = G.suggerer(sc.model, etat.options, sc.refLibres);
+  if (!res) { $("#resultatSuggestion").textContent = "Aucun planning possible avec ces verrous et contraintes."; return; }
+  const nom = `${sc.nom} · suggestion`;
+  const data = G.exporter(res, { suffixe: `${sc.model.data.suffixe || ""}_suggestion` });
+  const ns = nouveauScenario(nom, data, { own: sc.refOwn, libres: [...sc.refLibres] });
+  etat.scenarios.push(ns); etat.courant = ns.id; etat.onglet = "calendrier";
+  const c = G.compter(res);
+  rendre(); sauver();
+  $("#resultatSuggestion").textContent = `Nouveau scénario « ${nom} » : Papa ${c.P} / Maman ${c.M} (${Math.round(performance.now() - t0)} ms).`;
+});
+
+$("#alertes").addEventListener("click", (ev) => { const li = ev.target.closest("li"); if (li) flash(li.dataset.jour); });
+document.querySelector(".onglets").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) { etat.onglet = b.dataset.onglet; rendre(); } });
+$("#selScenario").addEventListener("change", (ev) => { etat.courant = ev.target.value; rendre(); sauver(); });
+$("#btnDupliquer").addEventListener("click", () => {
+  const sc = courant(); const nom = prompt("Nom du nouveau scénario :", `${sc.nom} (copie)`); if (!nom) return;
+  const ns = nouveauScenario(nom, G.exporter(sc.model, { suffixe: `_${slug(nom)}` }), { own: sc.refOwn, libres: [...sc.refLibres] });
+  etat.scenarios.push(ns); etat.courant = ns.id; rendre(); sauver();
+});
+$("#btnRenommer").addEventListener("click", () => { const sc = courant(); const nom = prompt("Nouveau nom :", sc.nom); if (nom) { sc.nom = nom; rendre(); sauver(); } });
+$("#btnSupprimer").addEventListener("click", () => {
+  const sc = courant(); if (!confirm(`Supprimer le scénario « ${sc.nom} » de ce navigateur ? (les fichiers du dépôt ne sont pas touchés)`)) return;
+  etat.scenarios = etat.scenarios.filter((s) => s !== sc); etat.courant = etat.scenarios[0] ? etat.scenarios[0].id : null; rendre(); sauver();
+});
+$("#btnReference").addEventListener("click", () => { const sc = courant(); definirReference(sc); rendre(); sauver(); });
+$("#btnCopier").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText($("#commandes").textContent));
+$("#btnAnnuler").addEventListener("click", annuler);
+$("#btnRetablir").addEventListener("click", retablir);
+$("#btnImporter").addEventListener("click", () => $("#fichier").click());
+$("#fichier").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });
+$("#btnExporter").addEventListener("click", exporter);
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.matches("input, select")) return;
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !ev.shiftKey) { ev.preventDefault(); annuler(); }
+  if ((ev.ctrlKey || ev.metaKey) && (ev.key.toLowerCase() === "y" || (ev.key.toLowerCase() === "z" && ev.shiftKey))) { ev.preventDefault(); retablir(); }
+});
+window.addEventListener("dragover", (ev) => ev.preventDefault());
+window.addEventListener("drop", (ev) => { ev.preventDefault(); importer([...ev.dataTransfer.files].filter((f) => f.name.endsWith(".json"))); });
+
+restaurer();
+rendre();
+</script>
+</body>
+</html>

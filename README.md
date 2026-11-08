@@ -55,6 +55,30 @@ uv run python scripts/generate_papa_maman.py data/planning_2027_lundi.json
 uv run python scripts/generate_papa_tierce.py    data/planning_2027_lundi.json
 ```
 
+## Éditeur interactif
+
+`outil/editeur.html` : ouvrir le fichier dans un navigateur (double-clic, sans
+serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-déposer).
+
+- **Calendrier** : clic sur un jour = il passe à l'autre parent jusqu'au
+  prochain échange (déplace l'échange) ; Maj+clic = ce jour seulement ;
+  Ctrl+clic = verrouiller le jour pour la suggestion. Annuler / rétablir
+  (Ctrl+Z / Ctrl+Y).
+- **Plages** : édition du/au/parent ; l'année reste toujours couverte.
+- **Règles & suggestion** : jour, heure et attribution des échanges (scolaire
+  et vacances), suffixe des PDF ; « Proposer un planning » calcule le meilleur
+  planning selon ces règles (équité, longueur des blocs, week-ends libres avec
+  Tierce, jours verrouillés) dans un nouveau scénario.
+- En direct : compteurs Papa/Maman (total, écart, par mois), week-ends libres à
+  deux, alertes (échange hors règle, bloc trop long/court, week-end libre perdu
+  par rapport à la référence).
+- **Scénarios** : chaque fichier ouvert, copie ou suggestion est un scénario
+  nommé, conservé dans le navigateur. « Exporter le JSON » télécharge
+  `planning_2027<suffixe>.json`, à placer dans `data/` pour générer les PDF.
+
+La logique (`outil/core.js`) reprend les mêmes règles que `scripts/common.py`
+(mêmes comptes, échanges et week-ends libres).
+
 ## Modifier le planning
 
 1. Éditer `data/planning_2027.json` (champ `garde_segments` : une plage
