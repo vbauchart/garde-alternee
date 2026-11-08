@@ -23,7 +23,7 @@ DATA = RACINE / "data" / "planning_2027.json"
 
 BLEU = "#9DC3E6"      # Papa indisponible
 ORANGE = "#F4B183"    # Tierce / Maman indisponible
-VERT = "#A9D18E"      # Week-end libre à deux
+VERT = "#A9D18E"      # Nuit libre à deux
 VIOLET = "#C9A9DD"    # Vacances zone B (Amiens)
 JAUNE = "#FFE699"     # Vacances zone C (Paris)
 ROUGE = "#F19C99"     # Jour férié
@@ -106,31 +106,46 @@ def jours_echange(segments, regles=None) -> dict:
     return ech
 
 
-def jours_libres(data: dict) -> set:
-    """Jours « libres à deux » (Papa ET Tierce sans enfants toute la journée).
+def nuits_tierce(data: dict) -> set:
+    """Nuits où Tierce a ses enfants : du soir de « du » au matin de « au ».
 
-    - Un week-end est libre si le samedi ET le dimanche sont libres pour les
-      deux : enfants chez Maman sans échange ce jour-là, et Tierce hors de ses
-      semaines (tierce_indisponible).
-    - « libres_supplementaires » : autres jours à afficher (ex. un jeudi),
-      retenus seulement s'ils sont effectivement libres pour les deux.
+    La nuit d'une date x va du soir de x au matin de x+1. Si la plage a une
+    « fin » (rendu le matin), la nuit de « au » est libre ; sinon (fin d'année)
+    elle est comptée.
+    """
+    nuits = set()
+    for seg in data["tierce_indisponible"]:
+        d, fin = _d(seg["du"]), _d(seg["au"])
+        if seg.get("fin"):
+            fin -= dt.timedelta(days=1)
+        while d <= fin:
+            nuits.add(d)
+            d += dt.timedelta(days=1)
+    return nuits
+
+
+def jours_libres(data: dict) -> set:
+    """Nuits « libres à deux » : CALCULÉES, jamais saisies dans le JSON.
+
+    Une date x est libre si la nuit de x (soir de x → matin de x+1) est sans
+    enfants pour Papa (chez Maman cette nuit-là, c.-à-d. après l'échange s'il y
+    en a un ce jour) ET pour Tierce (nuits_tierce).
     """
     garde = jours_de_segments(data["garde_segments"])
     ech = jours_echange(data["garde_segments"], data["regles"])
-    tierce = ensemble_de_segments(data["tierce_indisponible"])
+    tierce = nuits_tierce(data)
 
-    def libre(x):
-        return garde.get(x) == "maman" and x not in ech and x not in tierce
+    def nuit_papa(x):
+        return ech[x][1] if x in ech else garde.get(x)
 
-    res = set()
-    for x in garde:
-        dim = x + dt.timedelta(days=1)
-        if x.weekday() == 5 and libre(x) and libre(dim):
-            res |= {x, dim}
-    for s in data.get("libres_supplementaires", []):
-        if libre(_d(s)):
-            res.add(_d(s))
-    return res
+    return {x for x in garde if nuit_papa(x) == "maman" and x not in tierce}
+
+
+def weekends_libres(libres: set) -> list:
+    """Week-ends libres : nuits du vendredi ET du samedi libres à deux.
+    Retourne les samedis."""
+    return sorted(x for x in libres
+                  if x.weekday() == 5 and x - dt.timedelta(days=1) in libres)
 
 
 def libelles_tierce(data: dict) -> dict:
@@ -161,7 +176,7 @@ def _dessiner_mois(ax, mois_idx, annee, x0, largeur, y_haut, h_ligne,
 
     remplir(date, ncols) -> (cellules, libre)
         cellules : liste [(couleur|None, texte|None), ...] par colonne de données
-        libre    : bool (jour « libre à deux »)
+        libre    : bool (nuit « libre à deux » du soir de ce jour)
     """
     ncols = len(entetes_cols)
     x_label_w = largeur * 0.26

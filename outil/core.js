@@ -120,17 +120,19 @@
       if (s.size > ete.size) ete = s;
     }
     const tierceBusy = new Set(plagesVersJours(cal, data.tierce_indisponible || []).keys());
+    // Nuits de Tierce (soir de i -> matin de i+1) : la nuit du jour « fin » (rendu le matin) est libre.
+    const tierceNuits = new Set(tierceBusy);
+    for (const p of data.tierce_indisponible || []) if (p.fin) tierceNuits.delete(idx(cal, p.au));
     const tierceLabels = new Map();
     for (const p of data.tierce_indisponible || []) {
       if (p.des) tierceLabels.set(idx(cal, p.du), `dès ${p.des}`);
       if (p.fin) tierceLabels.set(idx(cal, p.au), `fin ${p.fin}`);
     }
     const feries = new Map((data.feries || []).map((f) => [idx(cal, f.date), f.nom]));
-    const extras = (data.libres_supplementaires || []).map((s) => idx(cal, s));
     const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
     return {
-      cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, tierceBusy, tierceLabels,
-      feries, extras, verrous, data,
+      cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, tierceBusy, tierceNuits, tierceLabels,
+      feries, verrous, data,
     };
   }
 
@@ -192,16 +194,24 @@
     return { P, M, ecart: Math.abs(P - M), mois };
   }
 
-  /** Jours libres à deux (Papa et Tierce sans enfants toute la journée). */
+  /** Qui a les enfants la nuit du jour i (soir de i -> matin de i+1). */
+  function nuitDe(m, ech, i) {
+    return ech.has(i) ? ech.get(i).recoit : m.own[i];
+  }
+
+  /** Nuits libres à deux : jour i = nuit du soir de i au matin de i+1, sans enfants pour Papa ni Tierce. */
   function libres(m, ech) {
     ech = ech || echanges(m);
-    const libre = (i) => m.own[i] === "M" && !ech.has(i) && !m.tierceBusy.has(i);
+    const libre = (i) => nuitDe(m, ech, i) === "M" && !m.tierceNuits.has(i);
     const out = new Set();
-    for (let i = 0; i + 1 < m.cal.n; i++) {
-      if (m.cal.jour[i] === 5 && libre(i) && libre(i + 1)) { out.add(i); out.add(i + 1); }
-    }
-    for (const i of m.extras) if (i >= 0 && i < m.cal.n && libre(i)) out.add(i);
+    for (let i = 0; i < m.cal.n; i++) if (libre(i)) out.add(i);
     return out;
+  }
+
+  /** Week-ends libres : nuits du vendredi ET du samedi libres (renvoie les samedis). */
+  function weekendsLibres(m, lib) {
+    lib = lib || libres(m);
+    return [...lib].filter((i) => m.cal.jour[i] === 5 && lib.has(i - 1));
   }
 
   function blocs(m) {
@@ -245,8 +255,16 @@
     });
     const lib = libres(m, ech);
     if (refLibres) {
-      for (const i of refLibres) if (!lib.has(i) && (m.cal.jour[i] !== 6 || !refLibres.has(i - 1)))
-        out.push({ niveau: "alerte", jour: i, msg: `Jour libre à deux perdu : ${nomJour(m, i)}.` });
+      const perdus = [...refLibres].filter((i) => !lib.has(i)).sort((a, b) => a - b);
+      for (let k = 0; k < perdus.length; k++) {
+        let f = k;
+        while (f + 1 < perdus.length && perdus[f + 1] === perdus[f] + 1) f++;
+        const a = perdus[k], b = perdus[f];
+        out.push({ niveau: "alerte", jour: a, msg: a === b
+          ? `Nuit libre à deux perdue : ${nomJour(m, a)} soir.`
+          : `Nuits libres à deux perdues : ${nomJour(m, a)} → ${nomJour(m, b)} soir.` });
+        k = f;
+      }
     }
     const c = compter(m);
     if (c.ecart > 1) out.push({ niveau: "info", jour: null,
@@ -314,10 +332,22 @@
   /**
    * Propose une garde complète selon les règles du modèle.
    * Contraintes dures : jours verrouillés (gardent leur parent actuel) et,
-   * si demandé, jours libres à deux de référence (enfants chez Maman).
+   * si demandé, week-ends libres à deux de référence (enfants chez Maman).
    * Coût : longueur des blocs + équité + bonus week-ends libres à deux.
    */
   function suggerer(m, opts, refLibres) {
+    if (refLibres) {
+      const we = new Set();
+      // Nuit d chez Maman <=> jour d+1 chez Maman (et jour d aussi si d+1 est un
+      // jour d'échange attribué à celui qui reçoit). Nuits ven. + sam.
+      const nuitM = (d) => {
+        if (d + 1 < m.cal.n) we.add(d + 1);
+        const r = regleDuJour(m, d + 1);
+        if (r.attr === "recoit" && m.cal.jour[d + 1] === r.jour) we.add(d);
+      };
+      for (const i of weekendsLibres(m, refLibres)) { nuitM(i - 1); nuitM(i); }
+      refLibres = we;
+    }
     const o = Object.assign({}, OPTIONS_DEFAUT, opts || {});
     const at = atomes(m), N = at.length, cal = m.cal;
     const fix = new Array(N).fill(null);
@@ -384,7 +414,7 @@
 
   const api = {
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
-    lireRegles, ecrireRegles, heureNorm, echanges, compter, libres, blocs, alertes,
+    lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

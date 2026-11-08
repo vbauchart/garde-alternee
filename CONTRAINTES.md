@@ -43,12 +43,20 @@ respecter.
   lundi de Pentecôte, fin le mar. 30/03 après le lundi de Pâques).
 - Données : `tierce_indisponible` (transcrit du PDF Papa & Tierce d'origine).
 
-## Week-ends libres à deux
+## Nuits et week-ends libres à deux
 
-- **Calculés automatiquement** : un week-end est libre si, le samedi et le
-  dimanche, les enfants de Papa sont chez Maman (sans échange ce jour-là) et
-  Tierce n'est pas dans une de ses semaines.
-- `libres_supplementaires` : autres jours libres à afficher (jeudi 4/03).
+- Les cases **LIBRE** (colonne Tierce, en vert) sont les moments où **ni Papa ni
+  Tierce n'ont d'enfants**. Elles sont **calculées** et ne sont **jamais stockées**
+  dans le JSON.
+- On compte des **nuits** (soir + lendemain matin) : la case LIBRE d'un jour
+  désigne la nuit du soir de ce jour au matin suivant.
+  - Papa : la nuit revient au parent qui a les enfants **après** l'échange du
+    jour (ex. mercredi où Papa rend à 18h → nuit chez Maman, donc libre).
+  - Tierce : ses nuits vont du soir de son début (« dès 11h » / lundi) au matin
+    de sa fin (« fin matin » / « fin 08h ») ; la nuit du jour de fin est libre.
+- Un **week-end libre** = nuits du **vendredi et du samedi** libres.
+- Total : **139 nuits / 21 week-ends** (planning principal, dont Noël 24–25/12),
+  **164 nuits / 20 week-ends** (variante lundi).
 - Planning principal : **20 week-ends** (les 19 de l'original + le 6–7/02
   gagné grâce à l'échange janvier/février).
 

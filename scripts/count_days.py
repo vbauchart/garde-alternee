@@ -32,9 +32,13 @@ def main():
     pct_p = 100 * tp / (tp + tm)
     print(f"Écart : {ecart} jour(s)  |  Papa {pct_p:.1f}% / Maman {100 - pct_p:.1f}%")
     libres = c.jours_libres(data)
-    we = sorted(x for x in libres if x.weekday() == 5)
-    print(f"Week-ends libres à deux (Papa & Tierce) : {len(we)} — "
+    we = c.weekends_libres(libres)
+    print(f"Nuits libres à deux (Papa & Tierce) : {len(libres)}")
+    print(f"Week-ends libres (nuits ven. + sam.) : {len(we)} — "
           + ", ".join(f"{x:%d/%m}" for x in we))
+    hors_we = sorted(x for x in libres if x.weekday() not in (4, 5))
+    if hors_we:
+        print("Autres nuits libres (date du soir) : " + ", ".join(f"{x:%d/%m}" for x in hors_we))
 
     # Vérifications de cohérence
     manquants = [dt.date(annee, 1, 1) + dt.timedelta(days=i)

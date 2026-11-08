@@ -69,15 +69,15 @@ serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-dépos
   et vacances), suffixe des PDF ; « Proposer un planning » calcule le meilleur
   planning selon ces règles (équité, longueur des blocs, week-ends libres avec
   Tierce, jours verrouillés) dans un nouveau scénario.
-- En direct : compteurs Papa/Maman (total, écart, par mois), week-ends libres à
-  deux, alertes (échange hors règle, bloc trop long/court, week-end libre perdu
+- En direct : compteurs Papa/Maman (total, écart, par mois), nuits et
+  week-ends libres à deux, alertes (échange hors règle, bloc trop long/court, nuit libre perdue
   par rapport à la référence).
 - **Scénarios** : chaque fichier ouvert, copie ou suggestion est un scénario
   nommé, conservé dans le navigateur. « Exporter le JSON » télécharge
   `planning_2027<suffixe>.json`, à placer dans `data/` pour générer les PDF.
 
 La logique (`outil/core.js`) reprend les mêmes règles que `scripts/common.py`
-(mêmes comptes, échanges et week-ends libres).
+(mêmes comptes, échanges et nuits libres).
 
 ## Modifier le planning
 
@@ -85,11 +85,11 @@ La logique (`outil/core.js`) reprend les mêmes règles que `scripts/common.py`
    `du`/`au` par période, avec le `parent` qui garde — le dernier jour d'une
    plage est le jour d'échange, attribué à ce parent).
 2. `count_days.py` vérifie qu'aucun jour n'est en trou ni en double, affiche
-   l'écart Papa/Maman et la liste des week-ends libres à deux.
+   l'écart Papa/Maman, le nombre de nuits libres à deux et les week-ends libres.
 3. Régénérer les deux PDF.
 
-Les week-ends « libres à deux » ne sont pas saisis : ils sont calculés à partir
-de la garde de Papa et du planning de Tierce (`tierce_indisponible`).
+Les nuits « libres à deux » (cases LIBRE = nuit du soir de ce jour au matin
+suivant) ne sont pas saisies : elles sont calculées à partir de la garde de Papa et du planning de Tierce (`tierce_indisponible`).
 
 ## État des données
 

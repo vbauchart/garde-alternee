@@ -137,7 +137,7 @@
           <span><i style="background:var(--papa)"></i>Papa</span>
           <span><i style="background:var(--maman)"></i>Maman</span>
           <span><i style="background:var(--tierce)"></i>Tierce avec ses enfants</span>
-          <span><i style="background:var(--libre)"></i>Libres à deux</span>
+          <span><i style="background:var(--libre)"></i>Nuit libre à deux (soir → matin)</span>
           <span><i style="background:var(--vacC)"></i>Vacances zone C</span>
           <span><i style="background:var(--vacB)"></i>Zone B (indicatif)</span>
           <span><i style="background:var(--ferie)"></i>Férié</span>
@@ -312,8 +312,8 @@ function rendre() {
 
 function rendreResume(sc, lib) {
   const m = sc.model, c = G.compter(m);
-  const nWe = [...lib].filter((i) => m.cal.jour[i] === 5).length;
-  const nRef = [...sc.refLibres].filter((i) => m.cal.jour[i] === 5).length;
+  const nWe = G.weekendsLibres(m, lib).length;
+  const nRef = G.weekendsLibres(m, sc.refLibres).length;
   const refC = { P: sc.refOwn.filter((o) => o === "P").length };
   const delta = c.P - refC.P;
   $("#resume").innerHTML = `
@@ -325,7 +325,8 @@ function rendreResume(sc, lib) {
     <div class="barre"><span style="width:${100 * c.P / (c.P + c.M)}%"></span><span style="flex:1"></span></div>
     <div class="ligne"><span>Écart</span><span class="${c.ecart <= 1 ? "bon" : "mauvais"}">${c.ecart} jour${c.ecart > 1 ? "s" : ""}</span></div>
     <div class="ligne"><span>vs référence (Papa)</span><span>${delta > 0 ? "+" : ""}${delta}</span></div>
-    <div class="ligne"><span>Week-ends libres à deux</span><span class="${nWe >= nRef ? "bon" : "mauvais"}">${nWe} <small>(réf. ${nRef})</small></span></div>
+    <div class="ligne"><span>Week-ends libres (ven.+sam.)</span><span class="${nWe >= nRef ? "bon" : "mauvais"}">${nWe} <small>(réf. ${nRef})</small></span></div>
+    <div class="ligne"><span>Nuits libres à deux</span><span class="${lib.size >= sc.refLibres.size ? "bon" : "mauvais"}">${lib.size} <small>(réf. ${sc.refLibres.size})</small></span></div>
     <table class="mois-recap"><tr><td></td><td><b>Papa</b></td><td><b>Maman</b></td></tr>
       ${c.mois.map((x, i) => `<tr><td>${G.MOIS[i]}</td><td>${x.P}</td><td>${x.M}</td></tr>`).join("")}</table>`;
 }
@@ -404,7 +405,7 @@ function rendreRegles(sc) {
   const fs = $("#optionsSuggestion");
   fs.querySelectorAll("label").forEach((l) => l.remove());
   fs.insertAdjacentHTML("beforeend", OPTS.map(([k, t]) => `<label class="champ">${t} <input type="number" min="0" data-opt="${k}" value="${etat.options[k]}"></label>`).join("") +
-    `<label class="champ">Garder les jours libres à deux de la référence <input type="checkbox" data-opt="garderLibres"${etat.options.garderLibres ? " checked" : ""}></label>
+    `<label class="champ">Garder les week-ends libres à deux de la référence <input type="checkbox" data-opt="garderLibres"${etat.options.garderLibres ? " checked" : ""}></label>
      <label class="champ">Respecter les jours verrouillés <input type="checkbox" data-opt="utiliserVerrous"${etat.options.utiliserVerrous ? " checked" : ""}></label>`);
   $("#nbVerrous").textContent = `${m.verrous.size} jour(s) verrouillé(s).`;
 }

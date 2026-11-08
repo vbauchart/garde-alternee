@@ -9,7 +9,8 @@ de Tierce pour maximiser les week-ends libres à deux.
 Colonnes : Papa | Tierce | B | C.
   - Papa indisponible (bleu)  = Papa a ses enfants (= jours « Papa »).
   - Tierce indisponible (orange) = Tierce a ses enfants.
-  - Week-end libre à deux (vert) = les deux sont libres.
+  - LIBRE (vert) = nuit libre à deux : ni Papa ni Tierce n'ont d'enfants du soir
+    de ce jour au lendemain matin (calculé, jamais stocké dans le JSON).
 """
 
 import common as c
@@ -59,7 +60,7 @@ def main():
 
     legende = [
         (c.BLEU, "Papa : indisponible"), (c.ORANGE, "Tierce : indisponible"),
-        (c.VERT, "Week-end libre à deux"), (c.VIOLET, "Vacances zone B (Amiens)"),
+        (c.VERT, "Nuit libre à deux (soir → lendemain matin)"), (c.VIOLET, "Vacances zone B (Amiens)"),
         (c.JAUNE, "Vacances zone C (Paris)"), (c.ROUGE, "Jour férié (col. C)"),
     ]
     note1, note2 = data.get("notes_papa_tierce", NOTE_PAPA_TIERCE_DEFAUT)
@@ -73,8 +74,8 @@ def main():
         c.dessiner_page(pdf, f"Planning {annee}{variante} : 2e semestre (Papa & Tierce)",
                         range(6, 12), annee, entetes, remplir, legende, note2)
     print(f"✓ {sortie}")
-    nb_we = sum(1 for x in libres if x.weekday() == 5)
-    print(f"  Week-ends libres à deux : {nb_we} (+{len(libres) - 2 * nb_we} jour(s) isolé(s))")
+    nb_we = len(c.weekends_libres(libres))
+    print(f"  Nuits libres à deux : {len(libres)} (dont {nb_we} week-ends ven.+sam.)")
 
 
 if __name__ == "__main__":
