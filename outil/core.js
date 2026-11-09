@@ -496,8 +496,56 @@
     };
   }
 
+  // ---------- Édition du planning de Tierce ----------
+  // Une période {du, au, des?, fin?} = Tierce a ses enfants du jour « du » (dès
+  // l'heure « des ») au jour « au » (rendus le matin si « fin » : la nuit de
+  // « au » est alors libre).
+
+  function tierceJours(cal, periodes) {
+    const jours = new Array(cal.n).fill(false);
+    for (const i of plagesVersJours(cal, periodes).keys()) jours[i] = true;
+    return jours;
+  }
+
+  /**
+   * Jours -> périodes. Les heures « des » / « fin » sont reprises des
+   * anciennes périodes dont le début / la fin tombe dans la nouvelle ; une
+   * nouvelle fin vaut « matin » (sauf au 31 décembre : nuit comptée).
+   */
+  function tierceDepuisJours(cal, jours, anciennes) {
+    const out = [];
+    for (let a = 0; a < cal.n; a++) {
+      if (!jours[a]) continue;
+      let b = a;
+      while (b + 1 < cal.n && jours[b + 1]) b++;
+      const dans = (s) => { const i = idx(cal, s); return i >= a && i <= b; };
+      const deb = anciennes.filter((p) => p.des && dans(p.du))[0];
+      const fins = anciennes.filter((p) => dans(p.au));
+      const p = { du: cal.iso[a], au: cal.iso[b] };
+      if (deb) p.des = deb.des;
+      if (fins.length) { if (fins[fins.length - 1].fin) p.fin = fins[fins.length - 1].fin; }
+      else if (b < cal.n - 1) p.fin = "matin";
+      out.push(p);
+      a = b;
+    }
+    return out;
+  }
+
+  /** Met les jours a..b à `valeur` (Tierce a / n'a pas ses enfants). */
+  function tierceBasculer(annee, periodes, a, b, valeur) {
+    const cal = calendrier(annee), jours = tierceJours(cal, periodes);
+    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) jours[i] = valeur;
+    return tierceDepuisJours(cal, jours, periodes);
+  }
+
+  /** Remet une liste de périodes (éditée à la main) en ordre : tri, fusion, année. */
+  function tierceNormaliser(annee, periodes) {
+    const cal = calendrier(annee);
+    return tierceDepuisJours(cal, tierceJours(cal, periodes), periodes);
+  }
+
   const api = {
-    planningVide, feriesFrance,
+    planningVide, feriesFrance, tierceBasculer, tierceNormaliser,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,

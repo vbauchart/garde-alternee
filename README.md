@@ -79,6 +79,10 @@ serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-dépos
   Ctrl+clic = verrouiller le jour pour la suggestion. Annuler / rétablir
   (Ctrl+Z / Ctrl+Y).
 - **Plages** : édition du/au/parent ; l'année reste toujours couverte.
+- **Planning de Tierce** : calendrier où un clic ajoute/retire un jour de Tierce
+  (Maj+clic = jusqu'au dernier jour cliqué), avec la garde de Papa et les nuits
+  libres en regard ; tableau des périodes pour les heures « dès » / « fin ».
+  « Exporter le planning de Tierce » télécharge `tierce_<année>.json` (à placer dans `data/`).
 - **Règles & suggestion** : jour, heure et attribution des échanges (scolaire
   et vacances), suffixe du fichier JSON (donc des PDF) ; « Proposer un planning » calcule le meilleur
   planning selon ces règles (équité, longueur des blocs, week-ends libres avec

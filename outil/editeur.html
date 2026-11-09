@@ -70,6 +70,7 @@
   td.horsregle { outline: 2px solid var(--err); outline-offset: -2px; }
   .modifie::before { content: "•"; color: var(--accent); margin-right: 2px; }
   .verrou::after { content: " 🔒"; font-size: 9px; }
+  .ancre::after { content: " ◆"; font-size: 9px; color: var(--accent); }
   tr.flash td { animation: flash 1.2s ease-out 2; }
   @keyframes flash { 50% { background: var(--accent); color: #fff; } }
   .vide { text-align: center; padding: 60px 20px; border: 2px dashed var(--line); border-radius: 12px; color: var(--muted); }
@@ -135,6 +136,7 @@
       <div class="onglets">
         <button data-onglet="calendrier" class="actif">Calendrier</button>
         <button data-onglet="plages">Plages</button>
+        <button data-onglet="tierce">Planning de Tierce</button>
         <button data-onglet="regles">Règles &amp; suggestion</button>
         <button data-onglet="export">Export &amp; PDF</button>
       </div>
@@ -160,6 +162,34 @@
           Modifier la fin d'une plage décale le début de la suivante (et inversement) : l'année reste toujours couverte.</p>
         <div id="erreursPlages" class="erreurs"></div>
         <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Chez</th><th>Jours</th><th></th></tr></thead><tbody id="plages"></tbody></table>
+      </div>
+
+      <div id="onglet-tierce" class="cache">
+        <div id="tierceAbsent" class="vide">
+          <p><b>Aucun planning de Tierce chargé.</b><br>
+          Charge <code>data/tierce_2027.json</code> avec « Planning de Tierce… », ou crée-le ici.</p>
+          <p><button id="btnTierceVide" class="primaire">Créer un planning de Tierce vide</button></p>
+        </div>
+        <div id="tiercePresent">
+          <p class="aide"><kbd>Clic</kbd> sur un jour : Tierce a / n'a pas ses enfants ce jour-là ·
+            <kbd>Maj</kbd>+clic : applique la même chose du dernier jour cliqué jusqu'à celui-ci ·
+            les heures « dès » (début) et « fin » (rendu le matin : la dernière nuit est libre) se règlent dans le tableau.
+            La colonne Papa montre la garde du scénario courant ; les nuits libres à deux se recalculent en direct.</p>
+          <p><button id="btnTierceExporter" class="primaire">Exporter le planning de Tierce</button>
+            <span class="aide" id="tierceNomExport"></span></p>
+          <div class="legende">
+            <span><i style="background:var(--papa)"></i>Papa a ses enfants</span>
+            <span><i style="background:var(--tierce)"></i>Tierce a ses enfants</span>
+            <span><i style="background:var(--libre)"></i>Nuit libre à deux</span>
+            <span><i style="background:var(--vacC)"></i>Vacances zone C</span>
+            <span><i style="background:var(--ferie)"></i>Férié</span>
+          </div>
+          <div id="calendrierTierce" class="calendrier"></div>
+          <h3>Périodes de Tierce</h3>
+          <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Dès (heure)</th><th>Fin</th><th>Jours</th><th></th></tr></thead>
+            <tbody id="periodesTierce"></tbody></table>
+          <p class="aide">« Fin » vide = la nuit du dernier jour est aussi avec les enfants (ex. fin d'année).</p>
+        </div>
       </div>
 
       <div id="onglet-regles" class="cache">
@@ -213,7 +243,8 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // tierce : planning de Tierce chargé à part ({nom, annee, tierce_indisponible}), commun à tous les scénarios
-const etat = { scenarios: [], courant: null, onglet: "calendrier", options: Object.assign({}, G.OPTIONS_DEFAUT), tierce: null };
+const etat = { scenarios: [], courant: null, onglet: "calendrier", options: Object.assign({}, G.OPTIONS_DEFAUT), tierce: null,
+  tierceUndo: [], tierceRedo: [], tierceAncre: null };
 
 // ---------------- Scénarios ----------------
 
@@ -234,7 +265,8 @@ function recalculerRefLibres(sc) {
   sc.refLibres = G.libres(ref);
 }
 /** Planning de Tierce changé : on reconstruit tous les scénarios avec (ou sans) lui. */
-function definirTierce(tierce) {
+function definirTierce(tierce, depuisHistorique) {
+  if (!depuisHistorique) { etat.tierceUndo.push(JSON.stringify(etat.tierce)); etat.tierceRedo = []; }
   etat.tierce = tierce;
   for (const sc of etat.scenarios) {
     sc.model = G.charger(G.exporter(sc.model), etat.tierce);
@@ -291,8 +323,18 @@ function modifier(fn) {
   fn(sc.model);
   rendre(); sauver();
 }
-function annuler() { const sc = courant(); if (!sc || !sc.undo.length) return; sc.redo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.undo.pop()); rendre(); sauver(); }
-function retablir() { const sc = courant(); if (!sc || !sc.redo.length) return; sc.undo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.redo.pop()); rendre(); sauver(); }
+// Dans l'onglet Tierce, annuler / rétablir portent sur le planning de Tierce (commun aux scénarios).
+const surTierce = () => etat.onglet === "tierce";
+function historiqueTierce(de, vers) {
+  if (!de.length) return;
+  vers.push(JSON.stringify(etat.tierce));
+  definirTierce(JSON.parse(de.pop()), true);
+}
+function modifierTierce(periodes) {
+  definirTierce(Object.assign({}, etat.tierce, { tierce_indisponible: periodes }));
+}
+function annuler() { if (surTierce()) return historiqueTierce(etat.tierceUndo, etat.tierceRedo); const sc = courant(); if (!sc || !sc.undo.length) return; sc.redo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.undo.pop()); rendre(); sauver(); }
+function retablir() { if (surTierce()) return historiqueTierce(etat.tierceRedo, etat.tierceUndo); const sc = courant(); if (!sc || !sc.redo.length) return; sc.undo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.redo.pop()); rendre(); sauver(); }
 
 // ---------------- Import / export ----------------
 
@@ -321,7 +363,14 @@ function chargerTierce(nom, data) {
   const sc = courant();
   if (sc && data.annee && data.annee !== sc.model.data.annee)
     alert(`${nom} : planning de Tierce ${data.annee}, mais le planning courant est ${sc.model.data.annee}.`);
-  definirTierce({ nom, annee: data.annee, tierce_indisponible: data.tierce_indisponible });
+  definirTierce({ nom, annee: data.annee, description: data.description, tierce_indisponible: data.tierce_indisponible });
+}
+function exporterTierce() {
+  if (!etat.tierce) return;
+  const v = etat.tierce, d = { annee: v.annee };
+  if (v.description) d.description = v.description;
+  d.tierce_indisponible = v.tierce_indisponible;
+  telecharger(`tierce_${v.annee}.json`, d);
 }
 function nouveauVide() {
   const sc = nouveauScenario("Nouveau planning", G.planningVide(2027));
@@ -331,9 +380,12 @@ function nouveauVide() {
 function nomFichier(m) { return `planning_${m.data.annee}${m.data.suffixe || ""}.json`; }
 function exporter() {
   const sc = courant(); if (!sc) return;
-  const blob = new Blob([JSON.stringify(G.exporter(sc.model), null, 2) + "\n"], { type: "application/json" });
+  telecharger(nomFichier(sc.model), G.exporter(sc.model));
+}
+function telecharger(nom, objet) {
+  const blob = new Blob([JSON.stringify(objet, null, 2) + "\n"], { type: "application/json" });
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = nomFichier(sc.model);
+  a.href = URL.createObjectURL(blob); a.download = nom;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -345,8 +397,8 @@ function rendre() {
   const sel = $("#selScenario");
   sel.innerHTML = etat.scenarios.map((s) => `<option value="${s.id}"${s.id === etat.courant ? " selected" : ""}>${esc(s.nom)}</option>`).join("");
   for (const b of ["#btnDupliquer", "#btnRenommer", "#btnSupprimer", "#btnExporter"]) $(b).disabled = !sc;
-  $("#btnAnnuler").disabled = !sc || !sc.undo.length;
-  $("#btnRetablir").disabled = !sc || !sc.redo.length;
+  $("#btnAnnuler").disabled = surTierce() ? !etat.tierceUndo.length : !sc || !sc.undo.length;
+  $("#btnRetablir").disabled = surTierce() ? !etat.tierceRedo.length : !sc || !sc.redo.length;
   sel.disabled = !etat.scenarios.length;
   $("#tierceEtat").innerHTML = etat.tierce ? `Tierce : <b>${esc(etat.tierce.nom)}</b>` : "Tierce : non chargé";
   $("#btnRetirerTierce").classList.toggle("cache", !etat.tierce);
@@ -356,10 +408,11 @@ function rendre() {
   const m = sc.model, ech = G.echanges(m), lib = G.libres(m, ech);
   rendreResume(sc, lib);
   rendreAlertes(sc);
-  for (const o of ["calendrier", "plages", "regles", "export"]) $(`#onglet-${o}`).classList.toggle("cache", etat.onglet !== o);
+  for (const o of ["calendrier", "plages", "tierce", "regles", "export"]) $(`#onglet-${o}`).classList.toggle("cache", etat.onglet !== o);
   document.querySelectorAll(".onglets button").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === etat.onglet));
   if (etat.onglet === "calendrier") rendreCalendrier(sc, ech, lib);
   if (etat.onglet === "plages") rendrePlages(sc);
+  if (etat.onglet === "tierce") rendreTierce(sc, ech, lib);
   if (etat.onglet === "regles") rendreRegles(sc);
   if (etat.onglet === "export") rendreExport(sc);
 }
@@ -435,6 +488,43 @@ function rendrePlages(sc) {
       <td class="n">${nb(p)}</td>
       <td><button data-action="couper" title="Couper la plage en deux">Couper</button>
           <button data-action="suppr" title="Fusionner avec la plage précédente"${k === 0 ? " disabled" : ""}>Supprimer</button></td></tr>`).join("");
+}
+
+function rendreTierce(sc, ech, lib) {
+  $("#tierceAbsent").classList.toggle("cache", !!etat.tierce);
+  $("#tiercePresent").classList.toggle("cache", !etat.tierce);
+  if (!etat.tierce) return;
+  const m = sc.model, cal = m.cal;
+  $("#tierceNomExport").textContent = `→ tierce_${etat.tierce.annee}.json, à placer dans data/`;
+  let html = "";
+  for (let mo = 0; mo < 12; mo++) {
+    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col style="width:22px"></colgroup>
+      <tr><th></th><th>Papa</th><th>Tierce</th><th>C</th></tr>`;
+    for (let i = 0; i < cal.n; i++) {
+      if (cal.mois[i] !== mo) continue;
+      const e = ech.get(i), we = cal.jour[i] >= 5;
+      let papa = m.own[i] === "P" ? "p" : "", vt = "";
+      if (e) { papa = "p"; vt = e.rend === "P" ? `fin ${e.heure}` : `dès ${e.heure}`; }
+      let tierce = "", valt = "";
+      if (m.tierceBusy.has(i)) { tierce = "v"; valt = m.tierceLabels.get(i) || ""; }
+      if (lib.has(i)) { tierce = "libre"; valt = valt || "LIBRE"; }
+      let vac = m.feries.has(i) ? "ferie" : (m.vacC.has(i) ? "vacC" : "");
+      const ancre = etat.tierceAncre === i ? "ancre" : "";
+      html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${ancre}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
+        <td class="${papa}">${vt}</td><td class="${tierce}">${esc(valt)}</td><td class="vac ${vac}" title="${esc(m.feries.get(i) || "")}"></td></tr>`;
+    }
+    html += `</table></div>`;
+  }
+  $("#calendrierTierce").innerHTML = html;
+  const nb = (p) => (Date.parse(p.au) - Date.parse(p.du)) / 86400000 + 1;
+  $("#periodesTierce").innerHTML = etat.tierce.tierce_indisponible.map((p, k) => `<tr data-k="${k}">
+      <td><input type="date" data-champ="du" value="${p.du}"></td>
+      <td><input type="date" data-champ="au" value="${p.au}"></td>
+      <td><input type="text" data-champ="des" value="${esc(p.des || "")}" size="6" placeholder="ex. 11h"></td>
+      <td><input type="text" data-champ="fin" value="${esc(p.fin || "")}" size="6" placeholder="ex. matin"></td>
+      <td class="n">${nb(p)}</td>
+      <td><button data-action="suppr">Supprimer</button></td></tr>`).join("") ||
+    `<tr><td colspan="6" class="aide">Aucune période : clique sur des jours du calendrier.</td></tr>`;
 }
 
 function champRegle(id, r) {
@@ -569,6 +659,34 @@ $("#btnReference").addEventListener("click", () => { const sc = courant(); defin
 $("#btnCopier").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText($("#commandes").textContent));
 $("#btnAnnuler").addEventListener("click", annuler);
 $("#btnRetablir").addEventListener("click", retablir);
+$("#calendrierTierce").addEventListener("click", (ev) => {
+  const tr = ev.target.closest("tr.jour"); if (!tr || !etat.tierce) return;
+  const i = +tr.dataset.i, sc = courant();
+  const avec = !sc.model.tierceBusy.has(i); // le jour cliqué bascule ; Maj : même état jusqu'à l'ancre
+  const a = ev.shiftKey && etat.tierceAncre != null ? etat.tierceAncre : i;
+  const valeur = ev.shiftKey && etat.tierceAncre != null ? sc.model.tierceBusy.has(etat.tierceAncre) : avec;
+  etat.tierceAncre = i;
+  modifierTierce(G.tierceBasculer(etat.tierce.annee, etat.tierce.tierce_indisponible, a, i, valeur));
+});
+$("#periodesTierce").addEventListener("change", (ev) => {
+  const el = ev.target, k = +el.closest("tr").dataset.k;
+  const liste = etat.tierce.tierce_indisponible.map((p) => Object.assign({}, p));
+  const v = el.value.trim();
+  if (v) liste[k][el.dataset.champ] = v; else delete liste[k][el.dataset.champ];
+  if (liste[k].du > liste[k].au) { rendre(); return; }
+  modifierTierce(G.tierceNormaliser(etat.tierce.annee, liste));
+});
+$("#periodesTierce").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-action=suppr]"); if (!b) return;
+  const k = +b.closest("tr").dataset.k;
+  modifierTierce(etat.tierce.tierce_indisponible.filter((_, j) => j !== k));
+});
+$("#btnTierceVide").addEventListener("click", () => {
+  const sc = courant();
+  definirTierce({ nom: "nouveau (à exporter)", annee: sc ? sc.model.data.annee : 2027,
+    description: "Planning de garde de Tierce (semaines où Tierce a ses enfants), créé avec l'éditeur.", tierce_indisponible: [] });
+});
+$("#btnTierceExporter").addEventListener("click", exporterTierce);
 $("#btnNouveau").addEventListener("click", nouveauVide);
 $("#btnTierce").addEventListener("click", () => $("#fichierTierce").click());
 $("#fichierTierce").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });
