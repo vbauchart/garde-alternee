@@ -1,6 +1,6 @@
 """Fonctions partagées : chargement des données, calcul des gardes, rendu calendrier.
 
-La source de vérité est data/planning_2027.json ; le planning de Tierce est dans
+La source de vérité est data/planning_2027.json ; le planning tierce est dans
 un fichier séparé et facultatif (data/tierce_2027.json). Les deux PDF sont
 dérivés de ce module (voir generate_pdf.py).
 """
@@ -38,12 +38,18 @@ JOURS_FR = ["L", "M", "M", "J", "V", "S", "D"]  # lundi=0 .. dimanche=6
 
 # --- Chargement et modèle --------------------------------------------------
 
+# Anciens noms (avant le renommage en « tierce »), encore acceptés en lecture
+ANCIEN_CHAMP = "tierce_indisponible"
+ANCIEN_FICHIER = "tierce"
+
+
 def lire_arguments() -> tuple[list[str], str | None]:
     """Arguments de la ligne de commande : [planning.json ...] [--tierce tierce.json]."""
     import sys
     args, tierce = sys.argv[1:], None
-    if "--tierce" in args:
-        k = args.index("--tierce")
+    opt = next((o for o in ("--tierce", "--tierce") if o in args), None)  # --tierce : ancien nom
+    if opt:
+        k = args.index(opt)
         if k + 1 >= len(args):
             sys.exit("--tierce attend le chemin d'un fichier JSON (ex. data/tierce_2027.json)")
         tierce = args[k + 1]
@@ -54,7 +60,7 @@ def lire_arguments() -> tuple[list[str], str | None]:
 def charger(path=None, tierce=None) -> dict:
     """Charge un fichier de planning (par défaut data/planning_2027.json).
 
-    Le planning de Tierce est un fichier SÉPARÉ et facultatif ({annee,
+    Le planning tierce est un fichier SÉPARÉ et facultatif ({annee,
     tierce_indisponible}) : `tierce` s'il est donné, sinon `tierce_<annee>.json` à côté
     du planning s'il existe. Un ancien planning contenant encore
     `tierce_indisponible` reste accepté. Ajoute data["avec_tierce"] (bool).
@@ -68,15 +74,19 @@ def charger(path=None, tierce=None) -> dict:
     path = Path(path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
+    if ANCIEN_CHAMP in data:  # ancien nom du champ
+        data.setdefault("tierce_indisponible", data.pop(ANCIEN_CHAMP))
     if tierce is None and "tierce_indisponible" not in data:
-        auto = path.parent / f"tierce_{data['annee']}.json"
-        tierce = auto if auto.exists() else None
+        for nom in (f"tierce_{data['annee']}.json", f"{ANCIEN_FICHIER}_{data['annee']}.json"):
+            if (path.parent / nom).exists():
+                tierce = path.parent / nom
+                break
     if tierce is not None:
         with open(tierce, encoding="utf-8") as f:
             v = json.load(f)
         if v.get("annee", data["annee"]) != data["annee"]:
-            print(f"⚠  {tierce} : planning de Tierce {v['annee']} ≠ planning {data['annee']}")
-        data["tierce_indisponible"] = v["tierce_indisponible"]
+            print(f"⚠  {tierce} : planning tierce {v['annee']} ≠ planning {data['annee']}")
+        data["tierce_indisponible"] = v.get("tierce_indisponible", v.get(ANCIEN_CHAMP, []))
     data["avec_tierce"] = "tierce_indisponible" in data
     data.setdefault("tierce_indisponible", [])
     return data
@@ -177,7 +187,7 @@ def jours_libres(data: dict) -> set:
 
     Une date x est libre si la nuit de x (soir de x → matin de x+1) est sans
     enfants pour Papa (chez Maman cette nuit-là, c.-à-d. après l'échange s'il y
-    en a un ce jour) ET pour Tierce (nuits_tierce).
+    en a un ce jour) ET pour le tiers (nuits_tierce).
     """
     garde = jours_de_segments(data["garde_segments"])
     ech = jours_echange(data["garde_segments"], data["regles"], data.get("feries", []))

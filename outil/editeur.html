@@ -107,8 +107,8 @@
   <button id="btnNouveau" title="Créer un planning vide (toute l'année chez Papa)">Nouveau</button>
   <button id="btnImporter">Ouvrir des JSON…</button>
   <span class="tierce-etat" id="tierceEtat"></span>
-  <button id="btnTierce" title="Charger le planning de Tierce (tierce_2027.json) : pris en compte dans les nuits libres et la suggestion">Planning de Tierce…</button>
-  <button id="btnRetirerTierce" title="Ne plus tenir compte du planning de Tierce">Retirer Tierce</button>
+  <button id="btnTierce" title="Charger le planning tierce (tierce_2027.json) : pris en compte dans les nuits libres et la suggestion">Planning tierce…</button>
+  <button id="btnRetirerTierce" title="Ne plus tenir compte du planning tierce">Retirer le planning tierce</button>
   <input type="file" id="fichierTierce" accept=".json,application/json" class="cache">
   <button id="btnExporter" class="primaire">Exporter le JSON</button>
   <input type="file" id="fichier" accept=".json,application/json" multiple class="cache">
@@ -126,7 +126,7 @@
       (ex. <code>data/planning_2027.json</code> et <code>data/planning_2027_lundi.json</code>)<br>
       avec le bouton « Ouvrir des JSON… » ou en les glissant dans cette fenêtre.</p>
       <p><button id="btnVide" class="primaire">Commencer un planning vide</button></p>
-      <p>Le planning de Tierce (<code>data/tierce_2027.json</code>) se charge à part, avec « Planning de Tierce… » :
+      <p>Le planning tierce (<code>data/tierce_2027.json</code>) se charge à part, avec « Planning tierce… » :
       il est alors pris en compte dans les nuits libres à deux et dans la suggestion.</p>
       <p>Chaque fichier devient un scénario. Les scénarios sont gardés dans ce navigateur ;
       « Exporter le JSON » produit le fichier à remettre dans <code>data/</code>.</p>
@@ -136,7 +136,7 @@
       <div class="onglets">
         <button data-onglet="calendrier" class="actif">Calendrier</button>
         <button data-onglet="plages">Plages</button>
-        <button data-onglet="tierce">Planning de Tierce</button>
+        <button data-onglet="tierce">Planning tierce</button>
         <button data-onglet="regles">Règles &amp; suggestion</button>
         <button data-onglet="export">Export &amp; PDF</button>
       </div>
@@ -166,16 +166,16 @@
 
       <div id="onglet-tierce" class="cache">
         <div id="tierceAbsent" class="vide">
-          <p><b>Aucun planning de Tierce chargé.</b><br>
-          Charge <code>data/tierce_2027.json</code> avec « Planning de Tierce… », ou crée-le ici.</p>
-          <p><button id="btnTierceVide" class="primaire">Créer un planning de Tierce vide</button></p>
+          <p><b>Aucun planning tierce chargé.</b><br>
+          Charge <code>data/tierce_2027.json</code> avec « Planning tierce… », ou crée-le ici.</p>
+          <p><button id="btnTierceVide" class="primaire">Créer un planning tierce vide</button></p>
         </div>
         <div id="tiercePresent">
           <p class="aide"><kbd>Clic</kbd> sur un jour : Tierce a / n'a pas ses enfants ce jour-là ·
             <kbd>Maj</kbd>+clic : applique la même chose du dernier jour cliqué jusqu'à celui-ci ·
             les heures « dès » (début) et « fin » (rendu le matin : la dernière nuit est libre) se règlent dans le tableau.
-            Seul le planning de Tierce est affiché ici.</p>
-          <p><button id="btnTierceExporter" class="primaire">Exporter le planning de Tierce</button>
+            Seul le planning tierce est affiché ici.</p>
+          <p><button id="btnTierceExporter" class="primaire">Exporter le planning tierce</button>
             <span class="aide" id="tierceNomExport"></span></p>
           <div class="legende">
             <span><i style="background:var(--tierce)"></i>Tierce a ses enfants</span>
@@ -183,7 +183,7 @@
             <span><i style="background:var(--ferie)"></i>Férié</span>
           </div>
           <div id="calendrierTierce" class="calendrier"></div>
-          <h3>Périodes de Tierce</h3>
+          <h3>Périodes du planning tierce</h3>
           <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Dès (heure)</th><th>Fin</th><th>Jours</th><th></th></tr></thead>
             <tbody id="periodesTierce"></tbody></table>
           <p class="aide">« Fin » vide = la nuit du dernier jour est aussi avec les enfants (ex. fin d'année).</p>
@@ -240,7 +240,7 @@ const CLE = "garde-alternee.scenarios.v1";
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// tierce : planning de Tierce chargé à part ({nom, annee, tierce_indisponible}), commun à tous les scénarios
+// tierce : planning tierce chargé à part ({nom, annee, tierce_indisponible}), commun à tous les scénarios
 const etat = { scenarios: [], courant: null, onglet: "calendrier", options: Object.assign({}, G.OPTIONS_DEFAUT), tierce: null,
   tierceUndo: [], tierceRedo: [], tierceAncre: null };
 
@@ -257,12 +257,12 @@ function definirReference(sc, ref) {
   sc.refOwn = sc.model.own.slice();
   sc.refLibres = G.libres(sc.model);
 }
-/** Nuits libres de la référence, recalculées avec le planning de Tierce actuel. */
+/** Nuits libres de la référence, recalculées avec le planning tierce actuel. */
 function recalculerRefLibres(sc) {
   const ref = G.cloner(sc.model); ref.own = sc.refOwn.slice();
   sc.refLibres = G.libres(ref);
 }
-/** Planning de Tierce changé : on reconstruit tous les scénarios avec (ou sans) lui. */
+/** Planning tierce changé : on reconstruit tous les scénarios avec (ou sans) lui. */
 function definirTierce(tierce, depuisHistorique) {
   if (!depuisHistorique) { etat.tierceUndo.push(JSON.stringify(etat.tierce)); etat.tierceRedo = []; }
   etat.tierce = tierce;
@@ -291,9 +291,10 @@ function restaurer() {
     if (!raw) return;
     const o = JSON.parse(raw);
     Object.assign(etat.options, o.options || {});
-    etat.tierce = o.tierce || null;
+    etat.tierce = G.migrerTierce(o.tierce || o.tierce || null); // « tierce » : ancien nom
     for (const s of o.scenarios || []) {
-      // ancien stockage : Tierce inclus dans chaque scénario -> planning de Tierce séparé
+      G.migrerTierce(s.data);
+      // ancien stockage : planning tierce inclus dans chaque scénario -> planning tierce séparé
       if (s.data.tierce_indisponible) {
         if (!etat.tierce) etat.tierce = { nom: "repris des scénarios", annee: s.data.annee, tierce_indisponible: s.data.tierce_indisponible };
         delete s.data.tierce_indisponible;
@@ -321,7 +322,7 @@ function modifier(fn) {
   fn(sc.model);
   rendre(); sauver();
 }
-// Dans l'onglet Tierce, annuler / rétablir portent sur le planning de Tierce (commun aux scénarios).
+// Dans l'onglet tierce, annuler / rétablir portent sur le planning tierce (commun aux scénarios).
 const surTierce = () => etat.onglet === "tierce";
 function historiqueTierce(de, vers) {
   if (!de.length) return;
@@ -336,17 +337,17 @@ function retablir() { if (surTierce()) return historiqueTierce(etat.tierceRedo, 
 
 // ---------------- Import / export ----------------
 
-/** Accepte des plannings de garde et/ou un planning de Tierce (reconnu à son contenu). */
+/** Accepte des plannings de garde et/ou un planning tierce (reconnu à son contenu). */
 async function importer(fichiers) {
   let dernier = null;
   for (const f of fichiers) {
     try {
-      const data = JSON.parse(await f.text());
+      const data = G.migrerTierce(JSON.parse(await f.text()));
       if (!data.garde_segments && Array.isArray(data.tierce_indisponible)) { chargerTierce(f.name, data); continue; }
-      if (!data.garde_segments || !data.annee) throw new Error("ce n'est ni un planning de garde ni un planning de Tierce");
+      if (!data.garde_segments || !data.annee) throw new Error("ce n'est ni un planning de garde ni un planning tierce");
       if (data.tierce_indisponible) {
-        // ancien format (Tierce inclus dans le planning) : on l'extrait comme planning de Tierce
-        if (!etat.tierce) chargerTierce(`${f.name} (Tierce extrait)`, { annee: data.annee, tierce_indisponible: data.tierce_indisponible });
+        // ancien format (planning tierce inclus dans le planning) : on l'extrait comme planning tierce
+        if (!etat.tierce) chargerTierce(`${f.name} (planning tierce extrait)`, { annee: data.annee, tierce_indisponible: data.tierce_indisponible });
         delete data.tierce_indisponible;
       }
       const nom = data.variante ? `Variante ${data.variante}` : (data.suffixe ? f.name.replace(/\.json$/, "") : "Planning principal");
@@ -360,7 +361,7 @@ async function importer(fichiers) {
 function chargerTierce(nom, data) {
   const sc = courant();
   if (sc && data.annee && data.annee !== sc.model.data.annee)
-    alert(`${nom} : planning de Tierce ${data.annee}, mais le planning courant est ${sc.model.data.annee}.`);
+    alert(`${nom} : planning tierce ${data.annee}, mais le planning courant est ${sc.model.data.annee}.`);
   definirTierce({ nom, annee: data.annee, description: data.description, tierce_indisponible: data.tierce_indisponible });
 }
 function exporterTierce() {
@@ -433,7 +434,7 @@ function rendreResume(sc, lib) {
     ${m.avecTierce ? `
     <div class="ligne"><span>Week-ends libres (ven.+sam.)</span><span class="${nWe >= nRef ? "bon" : "mauvais"}">${nWe} <small>(réf. ${nRef})</small></span></div>
     <div class="ligne"><span>Nuits libres à deux</span><span class="${lib.size >= sc.refLibres.size ? "bon" : "mauvais"}">${lib.size} <small>(réf. ${sc.refLibres.size})</small></span></div>`
-    : `<p class="aide">Planning de Tierce non chargé : nuits libres à deux non calculées (« Planning de Tierce… »).</p>`}
+    : `<p class="aide">Planning tierce non chargé : nuits libres à deux non calculées (« Planning tierce… »).</p>`}
     <table class="mois-recap"><tr><td></td><td><b>Papa</b></td><td><b>Maman</b></td></tr>
       ${c.mois.map((x, i) => `<tr><td>${G.MOIS[i]}</td><td>${x.P}</td><td>${x.M}</td></tr>`).join("")}</table>`;
 }
@@ -501,12 +502,12 @@ function rendreTierce(sc) {
     for (let i = 0; i < cal.n; i++) {
       if (cal.mois[i] !== mo) continue;
       const we = cal.jour[i] >= 5;
-      let tierce = "", valt = "";
-      if (m.tierceBusy.has(i)) { tierce = "v"; valt = m.tierceLabels.get(i) || ""; }
+      let tierce = "", libelle = "";
+      if (m.tierceBusy.has(i)) { tierce = "v"; libelle = m.tierceLabels.get(i) || ""; }
       let vac = m.feries.has(i) ? "ferie" : (m.vacC.has(i) ? "vacC" : "");
       const ancre = etat.tierceAncre === i ? "ancre" : "";
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${ancre}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
-        <td class="${tierce}">${esc(valt)}</td><td class="vac ${vac}" title="${esc(m.feries.get(i) || "")}"></td></tr>`;
+        <td class="${tierce}">${esc(libelle)}</td><td class="vac ${vac}" title="${esc(m.feries.get(i) || "")}"></td></tr>`;
     }
     html += `</table></div>`;
   }
@@ -556,7 +557,7 @@ function rendreExport(sc) {
   $("#nomExport").textContent = nom;
   $("#commandes").textContent = ["count_days", "generate_pdf"]
     .map((s) => `uv run python scripts/${s}.py data/${nom}`).join("\n") +
-    `\n# planning de Tierce : data/tierce_${sc.model.data.annee}.json (pris automatiquement s'il existe, ou --tierce FICHIER)`;
+    `\n# planning tierce : data/tierce_${sc.model.data.annee}.json (pris automatiquement s'il existe, ou --tierce FICHIER)`;
 }
 
 function flash(i) {
@@ -679,7 +680,7 @@ $("#periodesTierce").addEventListener("click", (ev) => {
 $("#btnTierceVide").addEventListener("click", () => {
   const sc = courant();
   definirTierce({ nom: "nouveau (à exporter)", annee: sc ? sc.model.data.annee : 2027,
-    description: "Planning de garde de Tierce (semaines où Tierce a ses enfants), créé avec l'éditeur.", tierce_indisponible: [] });
+    description: "Planning tierce (semaines où la personne tierce a ses enfants), créé avec l'éditeur.", tierce_indisponible: [] });
 });
 $("#btnTierceExporter").addEventListener("click", exporterTierce);
 $("#btnNouveau").addEventListener("click", nouveauVide);

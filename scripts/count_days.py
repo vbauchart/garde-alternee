@@ -2,7 +2,7 @@
 """Compte les jours de garde par parent et par mois, et vérifie l'équité.
 
 Usage : python scripts/count_days.py [planning.json] [--tierce tierce.json]
-(le planning de Tierce est cherché par défaut dans tierce_<annee>.json à côté du planning)
+(le planning tierce est cherché par défaut dans tierce_<annee>.json à côté du planning)
 """
 
 import datetime as dt
@@ -42,7 +42,7 @@ def main():
         if hors_we:
             print("Autres nuits libres (date du soir) : " + ", ".join(f"{x:%d/%m}" for x in hors_we))
     else:
-        print("(Pas de planning de Tierce : nuits libres à deux non calculées. "
+        print("(Pas de planning tierce : nuits libres à deux non calculées. "
               "Fournir tierce_<annee>.json à côté du planning ou --tierce FICHIER.)")
 
     # Vérifications de cohérence

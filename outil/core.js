@@ -105,12 +105,23 @@
 
   // ---------- Modèle ----------
 
+  /** Anciens noms (tierce_indisponible) -> tierce_indisponible ; modifie et renvoie l'objet. */
+  function migrerTierce(d) {
+    if (d && d.tierce_indisponible) {
+      if (!d.tierce_indisponible) d.tierce_indisponible = d.tierce_indisponible;
+      delete d.tierce_indisponible;
+    }
+    return d;
+  }
+
   /**
    * Construit le modèle de travail à partir d'un JSON de planning et, en
-   * option, du planning de Tierce chargé à part ({annee, tierce_indisponible}).
-   * Sans Tierce, les nuits libres à deux ne sont ni calculées ni optimisées.
+   * option, du planning tierce chargé à part ({annee, tierce_indisponible}).
+   * Sans planning tierce, les nuits libres à deux ne sont ni calculées ni optimisées.
    */
   function charger(data, tierce) {
+    data = migrerTierce(Object.assign({}, data));
+    if (tierce) tierce = migrerTierce(Object.assign({}, tierce));
     const cal = calendrier(data.annee);
     const avecTierce = !!(tierce || data.tierce_indisponible);
     if (tierce) data = Object.assign({}, data, { tierce_indisponible: tierce.tierce_indisponible || [] });
@@ -161,7 +172,7 @@
   /** JSON exportable (mêmes champs que l'original + garde/règles modifiées). */
   function exporter(m, extra) {
     const d = JSON.parse(JSON.stringify(m.data));
-    delete d.tierce_indisponible; // le planning de Tierce vit dans son propre fichier
+    delete d.tierce_indisponible; // le planning tierce vit dans son propre fichier
     d.garde_segments = plages(m);
     d.regles = ecrireRegles(m.regles, d.regles);
     if (m.verrous.size) d.verrous = [...m.verrous].sort((a, b) => a - b).map((i) => m.cal.iso[i]);
@@ -222,9 +233,9 @@
     return ech.has(i) ? ech.get(i).recoit : m.own[i];
   }
 
-  /** Nuits libres à deux : jour i = nuit du soir de i au matin de i+1, sans enfants pour Papa ni Tierce. */
+  /** Nuits libres à deux : jour i = nuit du soir de i au matin de i+1, sans enfants pour Papa ni le tiers. */
   function libres(m, ech) {
-    if (!m.avecTierce) return new Set(); // pas de planning de Tierce : rien à calculer
+    if (!m.avecTierce) return new Set(); // pas de planning tierce : rien à calculer
     ech = ech || echanges(m);
     const libre = (i) => nuitDe(m, ech, i) === "M" && !m.tierceNuits.has(i);
     const out = new Set();
@@ -373,7 +384,7 @@
       refLibres = we;
     }
     const o = Object.assign({}, OPTIONS_DEFAUT, opts || {});
-    // Sans planning de Tierce, on optimise seulement blocs + équité.
+    // Sans planning tierce, on optimise seulement blocs + équité.
     if (!m.avecTierce) Object.assign(o, { bonusWeekend: 0, poidsAlignementTierce: 0, garderLibres: false });
     const at = atomes(m), N = at.length, cal = m.cal;
     const fix = new Array(N).fill(null);
@@ -496,7 +507,7 @@
     };
   }
 
-  // ---------- Édition du planning de Tierce ----------
+  // ---------- Édition du planning tierce ----------
   // Une période {du, au, des?, fin?} = Tierce a ses enfants du jour « du » (dès
   // l'heure « des ») au jour « au » (rendus le matin si « fin » : la nuit de
   // « au » est alors libre).
@@ -545,7 +556,7 @@
   }
 
   const api = {
-    planningVide, feriesFrance, tierceBasculer, tierceNormaliser,
+    planningVide, feriesFrance, migrerTierce, tierceBasculer, tierceNormaliser,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,

@@ -5,7 +5,7 @@ Usage :
     uv run python scripts/generate_pdf.py                  # tous les data/planning_*.json
     uv run python scripts/generate_pdf.py data/planning_2027_lundi.json [...] [--tierce data/tierce_2027.json]
 
-Le planning de Tierce est facultatif : par défaut tierce_<annee>.json à côté du
+Le planning tierce est facultatif : par défaut tierce_<annee>.json à côté du
 planning. Sans lui, seul le PDF Papa / Maman est généré.
 
 Le nom du JSON sert de suffixe au nom des PDF (à la racine du dépôt) :
@@ -26,11 +26,10 @@ from pathlib import Path
 import common as c
 
 NOTE_PAPA_TIERCE_DEFAUT = [
-    "Jours d'échange coloriés (Papa : 18h, jour attribué à celui qui rend les "
-    "enfants ; Tierce : lun. matin). Vacances : zones B (indicative) et C.",
-    "Été : Papa du sam. 17 au sam. 31/07 et du sam. 14 au sam. 28/08. "
-    "Toussaint : Papa du mer. 20 au sam. 30/10. Objectif : maximiser les "
-    "week-ends libres à deux (vert).",
+    "Jours d'échange coloriés (heure et attribution selon les règles du "
+    "planning). Vacances : zones B (indicative) et C.",
+    "Objectif : maximiser les week-ends libres à deux (vert). Notes "
+    "personnalisables dans le JSON (champ notes_papa_tierce).",
 ]
 
 
@@ -128,7 +127,7 @@ def papa_tierce(data: dict, nom: str):
         (c.VERT, "Nuit libre à deux (soir → lendemain matin)"), (c.VIOLET, "Vacances zone B (Amiens)"),
         (c.JAUNE, "Vacances zone C (Paris)"), (c.ROUGE, "Jour férié (col. C)"),
     ]
-    note1, note2 = data.get("notes_papa_tierce", NOTE_PAPA_TIERCE_DEFAUT)
+    note1, note2 = data.get("notes_papa_tierce") or data.get("notes_papa_tierce") or NOTE_PAPA_TIERCE_DEFAUT
 
     annee = data["annee"]
     variante = data.get("titre_variante", "")
@@ -154,7 +153,7 @@ def main():
         if data["avec_tierce"]:
             papa_tierce(data, nom)
         else:
-            print(f"  (pas de planning de Tierce : papa_tierce_{nom}.pdf non généré)")
+            print(f"  (pas de planning tierce : papa_tierce_{nom}.pdf non généré)")
 
 
 if __name__ == "__main__":
