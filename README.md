@@ -66,6 +66,9 @@ uv run python scripts/generate_pdf.py data/planning_2027_lundi.json
 
 ## Éditeur interactif
 
+En ligne : <https://vbauchart.github.io/garde-alternee/> (aucune donnée n'y est
+publiée ; les JSON chargés restent dans le navigateur).
+
 `outil/editeur.html` : ouvrir le fichier dans un navigateur (double-clic, sans
 serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-déposer).
 
