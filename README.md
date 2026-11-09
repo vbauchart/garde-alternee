@@ -94,6 +94,10 @@ serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-dépos
 - En direct : compteurs Papa/Maman (total, écart, par mois), journées et soirs
   libres et week-ends libres, alertes (échange hors règle, bloc trop long/court,
   journée libre perdue par rapport à la référence).
+- **Export & PDF** : « PDF Papa / Maman » et « PDF jours à éviter » téléchargent
+  directement les mêmes documents que `generate_pdf.py` (2 pages A4 paysage),
+  générés dans le navigateur avec [jsPDF](https://github.com/parallax/jsPDF)
+  (`outil/jspdf.umd.min.js`, licence MIT ; mise en page dans `outil/impression.js`).
 - **Scénarios** : chaque fichier ouvert, copie ou suggestion est un scénario
   nommé, conservé dans le navigateur. « Exporter le JSON » télécharge
   `planning_2027<suffixe>.json`, à placer dans `data/` pour générer les PDF.

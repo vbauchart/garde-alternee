@@ -227,7 +227,14 @@
 
       <div id="onglet-export" class="cache">
         <div class="carte" style="max-width:760px">
-          <h2>Exporter et générer les PDF</h2>
+          <h2>Télécharger les PDF</h2>
+          <p>Mêmes documents que les scripts Python (2 pages A4 paysage), générés ici à partir du scénario courant.</p>
+          <p><button id="btnPdfPapaMaman" class="primaire">PDF Papa / Maman</button>
+             <button id="btnPdfAEviter" class="primaire">PDF jours à éviter</button>
+             <span class="aide" id="pdfInfo"></span></p>
+        </div>
+        <div class="carte" style="max-width:760px; margin-top:12px">
+          <h2>Ou exporter et générer les PDF avec Python</h2>
           <p>1. « Exporter le JSON » télécharge <b id="nomExport"></b>.<br>
              2. Place-le dans le dossier <code>data/</code> du dépôt.<br>
              3. Génère les PDF :</p>
@@ -242,6 +249,8 @@
 </main>
 
 <script src="core.js"></script>
+<script src="impression.js"></script>
+<script src="jspdf.umd.min.js"></script>
 <script>
 "use strict";
 const G = window.Garde;
@@ -600,6 +609,11 @@ function rendreRegles(sc) {
 
 function rendreExport(sc) {
   const nom = nomFichier(sc.model);
+  const pret = !!(window.jspdf && window.Impression);
+  $("#btnPdfPapaMaman").disabled = !pret;
+  $("#btnPdfAEviter").disabled = !pret || !sc.model.avecEviter;
+  $("#pdfInfo").textContent = !pret ? "Bibliothèque jsPDF non chargée."
+    : sc.model.avecEviter ? "" : "PDF jours à éviter : charge d'abord les jours à éviter.";
   $("#nomExport").textContent = nom;
   $("#commandes").textContent = ["count_days", "generate_pdf"]
     .map((s) => `uv run python scripts/${s}.py data/${nom}`).join("\n") +
@@ -699,6 +713,13 @@ $("#btnSupprimer").addEventListener("click", () => {
   etat.scenarios = etat.scenarios.filter((s) => s !== sc); etat.courant = etat.scenarios[0] ? etat.scenarios[0].id : null; rendre(); sauver();
 });
 $("#btnReference").addEventListener("click", () => { const sc = courant(); definirReference(sc); rendre(); sauver(); });
+function telechargerPDF(type) {
+  const sc = courant(); if (!sc || !window.jspdf) return;
+  const doc = Impression.documentPDF(sc.model, type, nomFichier(sc.model));
+  Impression.versJsPDF(window.jspdf.jsPDF, doc).save(doc.fichier);
+}
+$("#btnPdfPapaMaman").addEventListener("click", () => telechargerPDF("papa_maman"));
+$("#btnPdfAEviter").addEventListener("click", () => telechargerPDF("a_eviter"));
 $("#btnCopier").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText($("#commandes").textContent));
 $("#btnAnnuler").addEventListener("click", annuler);
 $("#btnRetablir").addEventListener("click", retablir);
