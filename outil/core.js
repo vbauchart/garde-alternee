@@ -105,23 +105,12 @@
 
   // ---------- Modèle ----------
 
-  /** Anciens noms (tierce_indisponible) -> tierce_indisponible ; modifie et renvoie l'objet. */
-  function migrerTierce(d) {
-    if (d && d.tierce_indisponible) {
-      if (!d.tierce_indisponible) d.tierce_indisponible = d.tierce_indisponible;
-      delete d.tierce_indisponible;
-    }
-    return d;
-  }
-
   /**
    * Construit le modèle de travail à partir d'un JSON de planning et, en
    * option, du planning tierce chargé à part ({annee, tierce_indisponible}).
    * Sans planning tierce, les nuits libres à deux ne sont ni calculées ni optimisées.
    */
   function charger(data, tierce) {
-    data = migrerTierce(Object.assign({}, data));
-    if (tierce) tierce = migrerTierce(Object.assign({}, tierce));
     const cal = calendrier(data.annee);
     const avecTierce = !!(tierce || data.tierce_indisponible);
     if (tierce) data = Object.assign({}, data, { tierce_indisponible: tierce.tierce_indisponible || [] });
@@ -556,7 +545,7 @@
   }
 
   const api = {
-    planningVide, feriesFrance, migrerTierce, tierceBasculer, tierceNormaliser,
+    planningVide, feriesFrance, tierceBasculer, tierceNormaliser,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,

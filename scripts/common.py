@@ -38,18 +38,12 @@ JOURS_FR = ["L", "M", "M", "J", "V", "S", "D"]  # lundi=0 .. dimanche=6
 
 # --- Chargement et modèle --------------------------------------------------
 
-# Anciens noms (avant le renommage en « tierce »), encore acceptés en lecture
-ANCIEN_CHAMP = "tierce_indisponible"
-ANCIEN_FICHIER = "tierce"
-
-
 def lire_arguments() -> tuple[list[str], str | None]:
     """Arguments de la ligne de commande : [planning.json ...] [--tierce tierce.json]."""
     import sys
     args, tierce = sys.argv[1:], None
-    opt = next((o for o in ("--tierce", "--tierce") if o in args), None)  # --tierce : ancien nom
-    if opt:
-        k = args.index(opt)
+    if "--tierce" in args:
+        k = args.index("--tierce")
         if k + 1 >= len(args):
             sys.exit("--tierce attend le chemin d'un fichier JSON (ex. data/tierce_2027.json)")
         tierce = args[k + 1]
@@ -74,19 +68,15 @@ def charger(path=None, tierce=None) -> dict:
     path = Path(path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    if ANCIEN_CHAMP in data:  # ancien nom du champ
-        data.setdefault("tierce_indisponible", data.pop(ANCIEN_CHAMP))
     if tierce is None and "tierce_indisponible" not in data:
-        for nom in (f"tierce_{data['annee']}.json", f"{ANCIEN_FICHIER}_{data['annee']}.json"):
-            if (path.parent / nom).exists():
-                tierce = path.parent / nom
-                break
+        auto = path.parent / f"tierce_{data['annee']}.json"
+        tierce = auto if auto.exists() else None
     if tierce is not None:
         with open(tierce, encoding="utf-8") as f:
             v = json.load(f)
         if v.get("annee", data["annee"]) != data["annee"]:
             print(f"⚠  {tierce} : planning tierce {v['annee']} ≠ planning {data['annee']}")
-        data["tierce_indisponible"] = v.get("tierce_indisponible", v.get(ANCIEN_CHAMP, []))
+        data["tierce_indisponible"] = v["tierce_indisponible"]
     data["avec_tierce"] = "tierce_indisponible" in data
     data.setdefault("tierce_indisponible", [])
     return data

@@ -123,9 +123,8 @@ suivant) ne sont pas saisies : elles sont calculées à partir de la garde de Pa
   tous les scénarios et pris en compte dans les nuits libres, les alertes et la
   suggestion (bonus week-ends libres à deux). Sans lui, la suggestion n'optimise
   que l'équité et la longueur des blocs.
-- Les anciens noms (`tierce_indisponible`, `tierce_<année>.json`, `--tierce`) restent
-  acceptés ; un ancien planning qui contient encore le planning tierce est
-  accepté (l'éditeur l'en extrait).
+- Un planning qui contient encore `tierce_indisponible` reste accepté (l'éditeur
+  en extrait le planning tierce).
 
 ## État des données
 

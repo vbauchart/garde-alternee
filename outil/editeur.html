@@ -291,9 +291,8 @@ function restaurer() {
     if (!raw) return;
     const o = JSON.parse(raw);
     Object.assign(etat.options, o.options || {});
-    etat.tierce = G.migrerTierce(o.tierce || o.tierce || null); // « tierce » : ancien nom
+    etat.tierce = o.tierce || null;
     for (const s of o.scenarios || []) {
-      G.migrerTierce(s.data);
       // ancien stockage : planning tierce inclus dans chaque scénario -> planning tierce séparé
       if (s.data.tierce_indisponible) {
         if (!etat.tierce) etat.tierce = { nom: "repris des scénarios", annee: s.data.annee, tierce_indisponible: s.data.tierce_indisponible };
@@ -342,7 +341,7 @@ async function importer(fichiers) {
   let dernier = null;
   for (const f of fichiers) {
     try {
-      const data = G.migrerTierce(JSON.parse(await f.text()));
+      const data = JSON.parse(await f.text());
       if (!data.garde_segments && Array.isArray(data.tierce_indisponible)) { chargerTierce(f.name, data); continue; }
       if (!data.garde_segments || !data.annee) throw new Error("ce n'est ni un planning de garde ni un planning tierce");
       if (data.tierce_indisponible) {
