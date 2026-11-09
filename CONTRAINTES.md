@@ -7,17 +7,15 @@ respecter.
 ## Acteurs
 
 - **Papa** et **Maman** : les deux parents, qui négocient le planning 2027.
-- **Tierce** : une personne tierce (ex. conjoint·e de Papa) qui a son propre
-  planning de garde (de ses enfants), **fixe et non négociable**. Ce planning
-  est facultatif.
+- **Jours à éviter** : jours où Papa préfère ne pas avoir la garde (activité,
+  déplacement…). Ils sont **fixes** et facultatifs.
 
 ## Objectif
 
 1. **Définir un planning de garde équitable** des enfants entre Papa et Maman
    pour 2027 (compte des jours le plus équilibré possible).
-2. **Aligner les périodes « sans enfants » de Papa sur celles du planning
-   tierce** afin de **maximiser les week-ends libres à deux** (en vert dans le
-   PDF Papa / Tierce).
+2. **Placer les périodes « sans enfants » de Papa sur les jours à éviter** afin
+   de **maximiser les week-ends libres** (en vert dans le PDF des jours à éviter).
 
 ## Règles d'échange
 
@@ -33,33 +31,28 @@ respecter.
   lendemain** (ex. sam. 25/12 Noël → échange le dim. 26/12 18h).
 - Pendant les vacances scolaires, on bascule sur un rythme **samedi → samedi
   18h** (quinzaines l'été).
-- Le **planning tierce est fixe** : c'est Papa qui adapte ses semaines pour
-  faire coïncider ses périodes libres avec celles du planning tierce.
+- Les **jours à éviter sont fixes** : c'est le planning de garde qui s'adapte
+  pour que Papa n'ait pas les enfants ces jours-là.
 
-## Planning tierce (fixe)
+## Jours à éviter (fixes)
 
-- Semaines **lundi → lundi matin** (« fin matin » le lundi de reprise).
-- En vacances : la personne tierce récupère ses enfants le **dimanche 11h** et les rend le
-  lundi (ou le jour de reprise) le matin (« fin 08h » / « fin 10h »).
-- Jour férié le lundi : décalage au mardi (ex. reprise le mar. 18/05 après le
-  lundi de Pentecôte, fin le mar. 30/03 après le lundi de Pâques).
-- Données : `tierce_indisponible` dans le fichier séparé `data/tierce_2027.json`
-  (transcrit du PDF d'origine).
+- Périodes **lundi → lundi** en semaine scolaire ; en vacances, jusqu'au
+  **dimanche 11h**.
+- Chaque période va du jour « du » (dès l'heure « des ») au jour « au »
+  (jusqu'à l'heure « fin » : le soir de « au » n'est alors plus à éviter).
+- Données : `jours_a_eviter` dans le fichier séparé `data/a_eviter_2027.json`.
 
-## Nuits et week-ends libres à deux
+## Journées, soirs et week-ends libres
 
-- Les cases **LIBRE** (colonne Tierce, en vert) sont les moments où **ni Papa
-  ni la personne tierce n'ont d'enfants**. Elles sont **calculées** et ne sont **jamais stockées**
-  dans le JSON.
-- On compte des **nuits** (soir + lendemain matin) : la case LIBRE d'un jour
-  désigne la nuit du soir de ce jour au matin suivant.
-  - Papa : la nuit revient au parent qui a les enfants **après** l'échange du
-    jour (ex. mercredi où Papa rend à 18h → nuit chez Maman, donc libre).
-  - Tierce : ses nuits vont du soir de son début (« dès 11h » / lundi) au matin
-    de sa fin (« fin matin » / « fin 08h ») ; la nuit du jour de fin est libre.
-- Un **week-end libre** = nuits du **vendredi et du samedi** libres.
-- Total : **139 nuits / 21 week-ends** (planning principal, dont Noël 24–25/12),
-  **164 nuits / 20 week-ends** (variante lundi).
+- Les cases **LIBRE** (colonne « À éviter », en vert) sont les jours où Papa
+  **n'a pas les enfants le soir** et qui sont **à éviter**. Elles sont
+  **calculées** et ne sont **jamais stockées** dans le JSON.
+- Un jour compte jusqu'au lendemain matin : Papa n'a pas les enfants le soir si
+  la nuit revient à Maman **après** l'échange du jour (ex. mercredi où Papa
+  rend à 18h → soir chez Maman, donc libre).
+- Un **week-end libre** = vendredi et samedi libres.
+- Total : **139 journées et soirs libres / 21 week-ends** (planning principal,
+  dont Noël 24–25/12), **163 / 20 week-ends** (variante lundi).
 - Planning principal : **20 week-ends** (les 19 de l'original + le 6–7/02
   gagné grâce à l'échange janvier/février).
 
@@ -102,10 +95,10 @@ Fichier séparé : `data/planning_2027_lundi.json` → PDF suffixés `_lundi`.
   Les jours avant le début des vacances (lundi → samedi) restent au parent de
   la semaine en cours ; la fin des vacances (dernier samedi 18h → reprise)
   rejoint la semaine scolaire suivante, sauf contrainte de week-end.
-- Mêmes contraintes que le planning principal : planning tierce fixe, les 19
+- Mêmes contraintes que le planning principal : jours à éviter fixes, les 19
   week-ends libres de l'original conservés, équité des jours.
-- Résultat : **Papa 183 / Maman 182** (écart 1), **20 week-ends libres à
-  deux** (les 19 de l'original + le 6–7/11).
+- Résultat : **Papa 183 / Maman 182** (écart 1), **20 week-ends
+  libres** (les 19 de l'original + le 6–7/11).
 - Points à négocier :
   - **Hiver** : Papa a la 1ʳᵉ semaine (6–13/02), Maman la 2ᵉ (13–20/02) —
     inverse de l'échange négocié dans le planning principal.
@@ -119,7 +112,7 @@ Fichier séparé : `data/planning_2027_lundi.json` → PDF suffixés `_lundi`.
 ## Zones de vacances
 
 - **Zone C (Paris)** : **zone de référence**. C'est elle qui définit les plages
-  de vacances **de tous les enfants** (ceux de Papa **et** ceux de la personne tierce) et qui
+  de vacances **de tous les enfants** (Papa et Maman) et qui
   déclenche l'échange du samedi. Fenêtres listées dans le JSON.
 - **Zone B (Amiens)** : donnée **à titre purement indicatif** (elle n'intervient
   pas dans les règles d'échange ni dans les disponibilités).
@@ -135,6 +128,6 @@ Noël (25/12).
 
 - `garde_segments` : transcrit des PDF d'origine (181/184), puis négocié
   (182/183).
-- `tierce_indisponible` (`data/tierce_2027.json`) : **exact**, transcrit du PDF d'origine.
+- `jours_a_eviter` (`data/a_eviter_2027.json`) : **exact**, complément des semaines du PDF d'origine.
 - `vacances` : dates reprises de l'ombrage du PDF d'origine (zones B et C).
 - `feries` : jours fériés 2027.

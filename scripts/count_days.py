@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Compte les jours de garde par parent et par mois, et vérifie l'équité.
 
-Usage : python scripts/count_days.py [planning.json] [--tierce tierce.json]
-(le planning tierce est cherché par défaut dans tierce_<annee>.json à côté du planning)
+Usage : python scripts/count_days.py [planning.json] [--a-eviter a_eviter.json]
+(les jours à éviter sont cherchés par défaut dans a_eviter_<annee>.json à côté du planning)
 """
 
 import datetime as dt
@@ -32,18 +32,18 @@ def main():
     ecart = abs(tp - tm)
     pct_p = 100 * tp / (tp + tm)
     print(f"Écart : {ecart} jour(s)  |  Papa {pct_p:.1f}% / Maman {100 - pct_p:.1f}%")
-    if data["avec_tierce"]:
+    if data["avec_a_eviter"]:
         libres = c.jours_libres(data)
         we = c.weekends_libres(libres)
-        print(f"Nuits libres à deux (Papa & Tierce) : {len(libres)}")
+        print(f"Journées et soirs libres : {len(libres)}")
         print(f"Week-ends libres (nuits ven. + sam.) : {len(we)} — "
               + ", ".join(f"{x:%d/%m}" for x in we))
         hors_we = sorted(x for x in libres if x.weekday() not in (4, 5))
         if hors_we:
-            print("Autres nuits libres (date du soir) : " + ", ".join(f"{x:%d/%m}" for x in hors_we))
+            print("Autres journées et soirs libres : " + ", ".join(f"{x:%d/%m}" for x in hors_we))
     else:
-        print("(Pas de planning tierce : nuits libres à deux non calculées. "
-              "Fournir tierce_<annee>.json à côté du planning ou --tierce FICHIER.)")
+        print("(Pas de jours à éviter : journées et soirs libres non calculés. "
+              "Fournir a_eviter_<annee>.json à côté du planning ou --a-eviter FICHIER.)")
 
     # Vérifications de cohérence
     manquants = [dt.date(annee, 1, 1) + dt.timedelta(days=i)

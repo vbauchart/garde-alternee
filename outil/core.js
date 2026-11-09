@@ -22,7 +22,7 @@
 
   const OPTIONS_DEFAUT = {
     blocMax: 10, blocMaxEte: 14, blocMin: 5,
-    poidsEquite: 40, bonusWeekend: 30, poidsAlignementTierce: 0.3,
+    poidsEquite: 40, bonusWeekend: 30, poidsAlignementEviter: 0.3,
     garderLibres: true, utiliserVerrous: true,
   };
 
@@ -107,13 +107,13 @@
 
   /**
    * Construit le modèle de travail à partir d'un JSON de planning et, en
-   * option, du planning tierce chargé à part ({annee, tierce_indisponible}).
-   * Sans planning tierce, les nuits libres à deux ne sont ni calculées ni optimisées.
+   * option, des jours à éviter chargés à part ({annee, jours_a_eviter}).
+   * Sans jours à éviter, les journées et soirs libres ne sont ni calculés ni optimisés.
    */
-  function charger(data, tierce) {
+  function charger(data, aEviter) {
     const cal = calendrier(data.annee);
-    const avecTierce = !!(tierce || data.tierce_indisponible);
-    if (tierce) data = Object.assign({}, data, { tierce_indisponible: tierce.tierce_indisponible || [] });
+    const avecEviter = !!(aEviter || data.jours_a_eviter);
+    if (aEviter) data = Object.assign({}, data, { jours_a_eviter: aEviter.jours_a_eviter || [] });
     const garde = plagesVersJours(cal, data.garde_segments, (p) => CODE[p.parent]);
     const own = new Array(cal.n);
     for (let i = 0; i < cal.n; i++) own[i] = garde.get(i) || null;
@@ -125,20 +125,20 @@
       const s = new Set(plagesVersJours(cal, [p]).keys());
       if (s.size > ete.size) ete = s;
     }
-    const tierceBusy = new Set(plagesVersJours(cal, data.tierce_indisponible || []).keys());
-    // Nuits de Tierce (soir de i -> matin de i+1) : la nuit du jour « fin » (rendu le matin) est libre.
-    const tierceNuits = new Set(tierceBusy);
-    for (const p of data.tierce_indisponible || []) if (p.fin) tierceNuits.delete(idx(cal, p.au));
-    const tierceLabels = new Map();
-    for (const p of data.tierce_indisponible || []) {
-      if (p.des) tierceLabels.set(idx(cal, p.du), `dès ${p.des}`);
-      if (p.fin) tierceLabels.set(idx(cal, p.au), `fin ${p.fin}`);
+    const eviterJours = new Set(plagesVersJours(cal, data.jours_a_eviter || []).keys());
+    // Soirs à éviter (soir de i -> matin de i+1) : le soir du jour « au » n'est pas compté s'il y a une « fin ».
+    const eviterNuits = new Set(eviterJours);
+    for (const p of data.jours_a_eviter || []) if (p.fin) eviterNuits.delete(idx(cal, p.au));
+    const eviterLabels = new Map();
+    for (const p of data.jours_a_eviter || []) {
+      if (p.des) eviterLabels.set(idx(cal, p.du), `dès ${p.des}`);
+      if (p.fin) eviterLabels.set(idx(cal, p.au), `fin ${p.fin}`);
     }
     const feries = new Map((data.feries || []).map((f) => [idx(cal, f.date), f.nom]));
     const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
     return {
-      cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, tierceBusy, tierceNuits, tierceLabels,
-      feries, verrous, data, avecTierce,
+      cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, eviterJours, eviterNuits, eviterLabels,
+      feries, verrous, data, avecEviter,
     };
   }
 
@@ -161,7 +161,7 @@
   /** JSON exportable (mêmes champs que l'original + garde/règles modifiées). */
   function exporter(m, extra) {
     const d = JSON.parse(JSON.stringify(m.data));
-    delete d.tierce_indisponible; // le planning tierce vit dans son propre fichier
+    delete d.jours_a_eviter; // les jours à éviter vivent dans leur propre fichier
     d.garde_segments = plages(m);
     d.regles = ecrireRegles(m.regles, d.regles);
     if (m.verrous.size) d.verrous = [...m.verrous].sort((a, b) => a - b).map((i) => m.cal.iso[i]);
@@ -222,11 +222,11 @@
     return ech.has(i) ? ech.get(i).recoit : m.own[i];
   }
 
-  /** Nuits libres à deux : jour i = nuit du soir de i au matin de i+1, sans enfants pour Papa ni le tiers. */
+  /** Journées et soirs libres : jour i (jusqu'au matin de i+1) sans enfants pour Papa, et jour à éviter. */
   function libres(m, ech) {
-    if (!m.avecTierce) return new Set(); // pas de planning tierce : rien à calculer
+    if (!m.avecEviter) return new Set(); // pas de jours à éviter : rien à calculer
     ech = ech || echanges(m);
-    const libre = (i) => nuitDe(m, ech, i) === "M" && !m.tierceNuits.has(i);
+    const libre = (i) => nuitDe(m, ech, i) === "M" && m.eviterNuits.has(i);
     const out = new Set();
     for (let i = 0; i < m.cal.n; i++) if (libre(i)) out.add(i);
     return out;
@@ -285,8 +285,8 @@
         while (f + 1 < perdus.length && perdus[f + 1] === perdus[f] + 1) f++;
         const a = perdus[k], b = perdus[f];
         out.push({ niveau: "alerte", jour: a, msg: a === b
-          ? `Nuit libre à deux perdue : ${nomJour(m, a)} soir.`
-          : `Nuits libres à deux perdues : ${nomJour(m, a)} → ${nomJour(m, b)} soir.` });
+          ? `Journée et soir libres perdus : ${nomJour(m, a)}.`
+          : `Journées et soirs libres perdus : ${nomJour(m, a)} → ${nomJour(m, b)}.` });
         k = f;
       }
     }
@@ -356,8 +356,8 @@
   /**
    * Propose une garde complète selon les règles du modèle.
    * Contraintes dures : jours verrouillés (gardent leur parent actuel) et,
-   * si demandé, week-ends libres à deux de référence (enfants chez Maman).
-   * Coût : longueur des blocs + équité + bonus week-ends libres à deux.
+   * si demandé, week-ends libres de référence (enfants chez Maman).
+   * Coût : longueur des blocs + équité + bonus week-ends libres.
    */
   function suggerer(m, opts, refLibres) {
     if (refLibres) {
@@ -373,8 +373,8 @@
       refLibres = we;
     }
     const o = Object.assign({}, OPTIONS_DEFAUT, opts || {});
-    // Sans planning tierce, on optimise seulement blocs + équité.
-    if (!m.avecTierce) Object.assign(o, { bonusWeekend: 0, poidsAlignementTierce: 0, garderLibres: false });
+    // Sans jours à éviter, on optimise seulement blocs + équité.
+    if (!m.avecEviter) Object.assign(o, { bonusWeekend: 0, poidsAlignementEviter: 0, garderLibres: false });
     const at = atomes(m), N = at.length, cal = m.cal;
     const fix = new Array(N).fill(null);
     at.forEach((t, i) => {
@@ -382,7 +382,7 @@
       if (o.garderLibres && refLibres) for (let d = t.a; d <= t.b; d++) if (refLibres.has(d)) fix[i] = "M";
     });
     const ete = at.map((t) => t.jours.length > 0 && t.jours.every((d) => m.ete.has(d)));
-    const tierceLibre = (d) => !m.tierceBusy.has(d);
+    const aEviter = (d) => m.eviterNuits.has(d); // soir à éviter
     // bonus week-end : dimanche dans [debut de l'atome, fin exclue)
     function bonus(i, prev, cur) {
       if (cur !== "M") return 0;
@@ -391,7 +391,7 @@
       for (let s = t.a; s < t.b || (i === N - 1 && s <= t.b); s++) {
         if (cal.jour[s] !== 6 || s === 0) continue;
         const sam = s - 1;
-        if (!tierceLibre(s) || !tierceLibre(sam)) continue;
+        if (!aEviter(sam - 1) || !aEviter(sam)) continue; // vendredi et samedi soir
         const okJour = (d) => {
           if (t.interieur.has(d)) return true;
           if (d === t.deb) return prev === "M";
@@ -399,7 +399,7 @@
         };
         if (okJour(s) && okJour(sam)) b += o.bonusWeekend;
       }
-      for (const d of t.interieur) if (cal.jour[d] === 5 && m.tierceBusy.has(d)) b -= o.poidsAlignementTierce;
+      for (const d of t.interieur) if (cal.jour[d] === 5 && !m.eviterNuits.has(d)) b -= o.poidsAlignementEviter;
       return b;
     }
     // états : clé "o|run|ete|diff"
@@ -496,12 +496,12 @@
     };
   }
 
-  // ---------- Édition du planning tierce ----------
-  // Une période {du, au, des?, fin?} = Tierce a ses enfants du jour « du » (dès
+  // ---------- Édition des jours à éviter ----------
+  // Une période {du, au, des?, fin?} = jours à éviter du jour « du » (dès
   // l'heure « des ») au jour « au » (rendus le matin si « fin » : la nuit de
   // « au » est alors libre).
 
-  function tierceJours(cal, periodes) {
+  function eviterJours(cal, periodes) {
     const jours = new Array(cal.n).fill(false);
     for (const i of plagesVersJours(cal, periodes).keys()) jours[i] = true;
     return jours;
@@ -512,7 +512,7 @@
    * anciennes périodes dont le début / la fin tombe dans la nouvelle ; une
    * nouvelle fin vaut « matin » (sauf au 31 décembre : nuit comptée).
    */
-  function tierceDepuisJours(cal, jours, anciennes) {
+  function eviterDepuisJours(cal, jours, anciennes) {
     const out = [];
     for (let a = 0; a < cal.n; a++) {
       if (!jours[a]) continue;
@@ -531,21 +531,21 @@
     return out;
   }
 
-  /** Met les jours a..b à `valeur` (Tierce a / n'a pas ses enfants). */
-  function tierceBasculer(annee, periodes, a, b, valeur) {
-    const cal = calendrier(annee), jours = tierceJours(cal, periodes);
+  /** Met les jours a..b à `valeur` (jour à éviter ou non). */
+  function eviterBasculer(annee, periodes, a, b, valeur) {
+    const cal = calendrier(annee), jours = eviterJours(cal, periodes);
     for (let i = Math.min(a, b); i <= Math.max(a, b); i++) jours[i] = valeur;
-    return tierceDepuisJours(cal, jours, periodes);
+    return eviterDepuisJours(cal, jours, periodes);
   }
 
   /** Remet une liste de périodes (éditée à la main) en ordre : tri, fusion, année. */
-  function tierceNormaliser(annee, periodes) {
+  function eviterNormaliser(annee, periodes) {
     const cal = calendrier(annee);
-    return tierceDepuisJours(cal, tierceJours(cal, periodes), periodes);
+    return eviterDepuisJours(cal, eviterJours(cal, periodes), periodes);
   }
 
   const api = {
-    planningVide, feriesFrance, tierceBasculer, tierceNormaliser,
+    planningVide, feriesFrance, eviterBasculer, eviterNormaliser,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,

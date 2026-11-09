@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Génère les deux PDF (Papa / Maman et Papa & Tierce) d'un ou plusieurs JSON.
+"""Génère les deux PDF (Papa / Maman et jours à éviter de Papa) d'un ou plusieurs JSON.
 
 Usage :
     uv run python scripts/generate_pdf.py                  # tous les data/planning_*.json
-    uv run python scripts/generate_pdf.py data/planning_2027_lundi.json [...] [--tierce data/tierce_2027.json]
+    uv run python scripts/generate_pdf.py data/planning_2027_lundi.json [...] [--a-eviter data/a_eviter_2027.json]
 
-Le planning tierce est facultatif : par défaut tierce_<annee>.json à côté du
+Les jours à éviter sont facultatifs : par défaut a_eviter_<annee>.json à côté du
 planning. Sans lui, seul le PDF Papa / Maman est généré.
 
 Le nom du JSON sert de suffixe au nom des PDF (à la racine du dépôt) :
     data/planning_2027_lundi.json -> papa_maman_planning_2027_lundi.pdf
-                                     papa_tierce_planning_2027_lundi.pdf
+                                     papa_a_eviter_planning_2027_lundi.pdf
 
 - Papa / Maman : document de négociation, qui garde les enfants chaque jour.
   Colonnes Papa | Maman | Zone C ; règles d'échange lues dans le JSON.
-- Papa & Tierce : disponibilité du couple. Colonnes Papa | Tierce | B | C.
-  Papa indisponible (bleu) = jours « Papa » ; Tierce indisponible (orange) ;
-  LIBRE (vert) = nuit libre à deux, du soir de ce jour au lendemain matin
+- Jours à éviter : disponibilité de Papa. Colonnes Papa | À éviter | B | C.
+  Papa a les enfants (bleu) = jours « Papa » ; jour à éviter (orange) ;
+  LIBRE (vert) = journée et soir libres (sans enfants, jour à éviter)
   (calculé, jamais stocké dans le JSON).
 """
 
@@ -25,11 +25,11 @@ from pathlib import Path
 
 import common as c
 
-NOTE_PAPA_TIERCE_DEFAUT = [
+NOTE_PAPA_A_EVITER_DEFAUT = [
     "Jours d'échange coloriés (heure et attribution selon les règles du "
     "planning). Vacances : zones B (indicative) et C.",
-    "Objectif : maximiser les week-ends libres à deux (vert). Notes "
-    "personnalisables dans le JSON (champ notes_papa_tierce).",
+    "Objectif : maximiser les week-ends libres (vert). Notes "
+    "personnalisables dans le JSON (champ notes_papa_a_eviter).",
 ]
 
 
@@ -89,17 +89,17 @@ def papa_maman(data: dict, nom: str):
 
 
 
-def papa_tierce(data: dict, nom: str):
+def papa_a_eviter(data: dict, nom: str):
     garde = c.jours_de_segments(data["garde_segments"])
     echanges = c.jours_echange(data["garde_segments"], data["regles"], data["feries"])
-    tierce = c.ensemble_de_segments(data["tierce_indisponible"])
-    tierce_lab = c.libelles_tierce(data)
+    a_eviter = c.ensemble_de_segments(data["jours_a_eviter"])
+    a_eviter_lab = c.libelles_a_eviter(data)
     libres = c.jours_libres(data)
     zone_b = c.ensemble_de_segments(data["vacances"]["zone_b"])
     zone_c = c.ensemble_de_segments(data["vacances"]["zone_c"])
     feries = {c._d(f["date"]) for f in data["feries"]}
 
-    entetes = ["Papa", "Tierce", "B", "C"]
+    entetes = ["Papa", "À éviter", "B", "C"]
 
     def remplir(date, ncols):
         # Colonne Papa : bleu quand Papa a les enfants (jour « Papa »)
@@ -110,8 +110,8 @@ def papa_tierce(data: dict, nom: str):
                 papa_cell = (c.BLEU, f"fin {heure}")
             elif recoit == "papa":
                 papa_cell = (c.BLEU, f"dès {heure}")
-        # Colonne Tierce : orange quand Tierce a ses enfants
-        tierce_cell = (c.ORANGE, tierce_lab.get(date)) if date in tierce else (None, None)
+        # Colonne À éviter : orange les jours à éviter
+        a_eviter_cell = (c.ORANGE, a_eviter_lab.get(date)) if date in a_eviter else (None, None)
         # Colonnes vacances
         b_cell = (c.VIOLET, None) if date in zone_b else (None, None)
         if date in feries:
@@ -120,40 +120,40 @@ def papa_tierce(data: dict, nom: str):
             cc_cell = (c.JAUNE, None)
         else:
             cc_cell = (None, None)
-        return [papa_cell, tierce_cell, b_cell, cc_cell], (date in libres)
+        return [papa_cell, a_eviter_cell, b_cell, cc_cell], (date in libres)
 
     legende = [
-        (c.BLEU, "Papa : indisponible"), (c.ORANGE, "Tierce : indisponible"),
-        (c.VERT, "Nuit libre à deux (soir → lendemain matin)"), (c.VIOLET, "Vacances zone B (Amiens)"),
+        (c.BLEU, "Papa a les enfants"), (c.ORANGE, "Jour à éviter"),
+        (c.VERT, "Journée et soir libres"), (c.VIOLET, "Vacances zone B (Amiens)"),
         (c.JAUNE, "Vacances zone C (Paris)"), (c.ROUGE, "Jour férié (col. C)"),
     ]
-    note1, note2 = data.get("notes_papa_tierce") or data.get("notes_papa_tierce") or NOTE_PAPA_TIERCE_DEFAUT
+    note1, note2 = data.get("notes_papa_a_eviter") or data.get("notes_papa_a_eviter") or NOTE_PAPA_A_EVITER_DEFAUT
 
     annee = data["annee"]
     variante = data.get("titre_variante", "")
-    sortie = f"papa_tierce_{nom}.pdf"
+    sortie = f"papa_a_eviter_{nom}.pdf"
     with c.nouvelle_sortie(sortie) as pdf:
-        c.dessiner_page(pdf, f"Planning {annee}{variante} : 1er semestre (Papa & Tierce)",
+        c.dessiner_page(pdf, f"Planning {annee}{variante} : 1er semestre (jours à éviter)",
                         range(0, 6), annee, entetes, remplir, legende, note1)
-        c.dessiner_page(pdf, f"Planning {annee}{variante} : 2e semestre (Papa & Tierce)",
+        c.dessiner_page(pdf, f"Planning {annee}{variante} : 2e semestre (jours à éviter)",
                         range(6, 12), annee, entetes, remplir, legende, note2)
     print(f"✓ {sortie}")
     nb_we = len(c.weekends_libres(libres))
-    print(f"  Nuits libres à deux : {len(libres)} (dont {nb_we} week-ends ven.+sam.)")
+    print(f"  Journées et soirs libres : {len(libres)} (dont {nb_we} week-ends ven.+sam.)")
 
 
 
 def main():
-    chemins, tierce = c.lire_arguments()
+    chemins, a_eviter = c.lire_arguments()
     chemins = chemins or sorted(str(p) for p in (c.RACINE / "data").glob("planning_*.json"))
     for chemin in chemins:
-        data = c.charger(chemin, tierce)
+        data = c.charger(chemin, a_eviter)
         nom = Path(chemin).stem
         papa_maman(data, nom)
-        if data["avec_tierce"]:
-            papa_tierce(data, nom)
+        if data["avec_a_eviter"]:
+            papa_a_eviter(data, nom)
         else:
-            print(f"  (pas de planning tierce : papa_tierce_{nom}.pdf non généré)")
+            print(f"  (pas de jours à éviter : papa_a_eviter_{nom}.pdf non généré)")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Fonctions partagées : chargement des données, calcul des gardes, rendu calendrier.
 
-La source de vérité est data/planning_2027.json ; le planning tierce est dans
-un fichier séparé et facultatif (data/tierce_2027.json). Les deux PDF sont
+La source de vérité est data/planning_2027.json ; les jours à éviter sont
+dans un fichier séparé et facultatif (data/a_eviter_2027.json). Les deux PDF sont
 dérivés de ce module (voir generate_pdf.py).
 """
 
@@ -23,8 +23,8 @@ DATA = RACINE / "data" / "planning_2027.json"
 # --- Couleurs (proches des PDF d'origine) ----------------------------------
 
 BLEU = "#9DC3E6"      # Papa indisponible
-ORANGE = "#F4B183"    # Tierce / Maman indisponible
-VERT = "#A9D18E"      # Nuit libre à deux
+ORANGE = "#F4B183"    # Jour à éviter / Maman indisponible
+VERT = "#A9D18E"      # Journée et soir libres
 VIOLET = "#C9A9DD"    # Vacances zone B (Amiens)
 JAUNE = "#FFE699"     # Vacances zone C (Paris)
 ROUGE = "#F19C99"     # Jour férié
@@ -39,46 +39,47 @@ JOURS_FR = ["L", "M", "M", "J", "V", "S", "D"]  # lundi=0 .. dimanche=6
 # --- Chargement et modèle --------------------------------------------------
 
 def lire_arguments() -> tuple[list[str], str | None]:
-    """Arguments de la ligne de commande : [planning.json ...] [--tierce tierce.json]."""
+    """Arguments de la ligne de commande : [planning.json ...] [--a-eviter a_eviter.json]."""
     import sys
-    args, tierce = sys.argv[1:], None
-    if "--tierce" in args:
-        k = args.index("--tierce")
+    args, a_eviter = sys.argv[1:], None
+    if "--a-eviter" in args:
+        k = args.index("--a-eviter")
         if k + 1 >= len(args):
-            sys.exit("--tierce attend le chemin d'un fichier JSON (ex. data/tierce_2027.json)")
-        tierce = args[k + 1]
+            sys.exit("--a-eviter attend le chemin d'un fichier JSON (ex. data/a_eviter_2027.json)")
+        a_eviter = args[k + 1]
         del args[k:k + 2]
-    return args, tierce
+    return args, a_eviter
 
 
-def charger(path=None, tierce=None) -> dict:
+def charger(path=None, a_eviter=None) -> dict:
     """Charge un fichier de planning (par défaut data/planning_2027.json).
 
-    Le planning tierce est un fichier SÉPARÉ et facultatif ({annee,
-    tierce_indisponible}) : `tierce` s'il est donné, sinon `tierce_<annee>.json` à côté
+    Les jours à éviter (où Papa préfère ne pas avoir la garde : activité,
+    déplacement…) sont un fichier SÉPARÉ et facultatif ({annee,
+    jours_a_eviter}) : `a_eviter` s'il est donné, sinon `a_eviter_<annee>.json` à côté
     du planning s'il existe. Un ancien planning contenant encore
-    `tierce_indisponible` reste accepté. Ajoute data["avec_tierce"] (bool).
+    `jours_a_eviter` reste accepté. Ajoute data["avec_a_eviter"] (bool).
 
-    Usage en ligne de commande : [planning.json] [--tierce tierce.json].
+    Usage en ligne de commande : [planning.json] [--a-eviter a_eviter.json].
     """
     if path is None:
-        args, tierce_cli = lire_arguments()
+        args, a_eviter_cli = lire_arguments()
         path = args[0] if args else DATA
-        tierce = tierce or tierce_cli
+        a_eviter = a_eviter or a_eviter_cli
     path = Path(path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    if tierce is None and "tierce_indisponible" not in data:
-        auto = path.parent / f"tierce_{data['annee']}.json"
-        tierce = auto if auto.exists() else None
-    if tierce is not None:
-        with open(tierce, encoding="utf-8") as f:
+    if a_eviter is None and "jours_a_eviter" not in data:
+        auto = path.parent / f"a_eviter_{data['annee']}.json"
+        a_eviter = auto if auto.exists() else None
+    if a_eviter is not None:
+        with open(a_eviter, encoding="utf-8") as f:
             v = json.load(f)
         if v.get("annee", data["annee"]) != data["annee"]:
-            print(f"⚠  {tierce} : planning tierce {v['annee']} ≠ planning {data['annee']}")
-        data["tierce_indisponible"] = v["tierce_indisponible"]
-    data["avec_tierce"] = "tierce_indisponible" in data
-    data.setdefault("tierce_indisponible", [])
+            print(f"⚠  {a_eviter} : jours à éviter {v['annee']} ≠ planning {data['annee']}")
+        data["jours_a_eviter"] = v["jours_a_eviter"]
+    data["avec_a_eviter"] = "jours_a_eviter" in data
+    data.setdefault("jours_a_eviter", [])
     return data
 
 
@@ -154,15 +155,15 @@ def jours_echange(segments, regles=None, feries=()) -> dict:
     return ech
 
 
-def nuits_tierce(data: dict) -> set:
-    """Nuits où Tierce a ses enfants : du soir de « du » au matin de « au ».
+def nuits_a_eviter(data: dict) -> set:
+    """Nuits à éviter : du soir de « du » au matin de « au ».
 
     La nuit d'une date x va du soir de x au matin de x+1. Si la plage a une
-    « fin » (rendu le matin), la nuit de « au » est libre ; sinon (fin d'année)
-    elle est comptée.
+    « fin » (elle se termine dans la journée de « au »), la nuit de « au »
+    n'est pas comptée ; sinon (fin d'année) elle l'est.
     """
     nuits = set()
-    for seg in data["tierce_indisponible"]:
+    for seg in data["jours_a_eviter"]:
         d, fin = _d(seg["du"]), _d(seg["au"])
         if seg.get("fin"):
             fin -= dt.timedelta(days=1)
@@ -173,33 +174,33 @@ def nuits_tierce(data: dict) -> set:
 
 
 def jours_libres(data: dict) -> set:
-    """Nuits « libres à deux » : CALCULÉES, jamais saisies dans le JSON.
+    """Journées et soirs libres : CALCULÉS, jamais saisies dans le JSON.
 
-    Une date x est libre si la nuit de x (soir de x → matin de x+1) est sans
-    enfants pour Papa (chez Maman cette nuit-là, c.-à-d. après l'échange s'il y
-    en a un ce jour) ET pour le tiers (nuits_tierce).
+    Une date x est libre si Papa n'a pas les enfants le soir de x (chez Maman
+    cette nuit-là, c.-à-d. après l'échange s'il y en a un ce jour) ET si ce
+    soir-là est à éviter (nuits_a_eviter : activité, déplacement…).
     """
     garde = jours_de_segments(data["garde_segments"])
     ech = jours_echange(data["garde_segments"], data["regles"], data.get("feries", []))
-    tierce = nuits_tierce(data)
+    a_eviter = nuits_a_eviter(data)
 
     def nuit_papa(x):
         return ech[x][1] if x in ech else garde.get(x)
 
-    return {x for x in garde if nuit_papa(x) == "maman" and x not in tierce}
+    return {x for x in garde if nuit_papa(x) == "maman" and x in a_eviter}
 
 
 def weekends_libres(libres: set) -> list:
-    """Week-ends libres : nuits du vendredi ET du samedi libres à deux.
+    """Week-ends libres : vendredi ET samedi libres.
     Retourne les samedis."""
     return sorted(x for x in libres
                   if x.weekday() == 5 and x - dt.timedelta(days=1) in libres)
 
 
-def libelles_tierce(data: dict) -> dict:
-    """Libellés des échanges de Tierce : {date: « dès 11h » / « fin matin »}."""
+def libelles_a_eviter(data: dict) -> dict:
+    """Libellés des jours à éviter : {date: « dès 11h » / « fin matin »}."""
     lab = {}
-    for seg in data["tierce_indisponible"]:
+    for seg in data["jours_a_eviter"]:
         if seg.get("des"):
             lab[_d(seg["du"])] = f"dès {seg['des']}"
         if seg.get("fin"):
@@ -224,7 +225,7 @@ def _dessiner_mois(ax, mois_idx, annee, x0, largeur, y_haut, h_ligne,
 
     remplir(date, ncols) -> (cellules, libre)
         cellules : liste [(couleur|None, texte|None), ...] par colonne de données
-        libre    : bool (nuit « libre à deux » du soir de ce jour)
+        libre    : bool (journée et soir libres)
     """
     ncols = len(entetes_cols)
     x_label_w = largeur * 0.26
