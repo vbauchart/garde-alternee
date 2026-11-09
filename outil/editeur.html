@@ -379,10 +379,20 @@ function exporterEviter() {
   d.jours_a_eviter = v.jours_a_eviter;
   telecharger(`a_eviter_${v.annee}.json`, d);
 }
-function nouveauVide() {
+/**
+ * Nouveau planning de l'année choisie. Vide (toute l'année chez Papa), ou,
+ * avec `suggestion`, directement la suggestion calculée avec les options par défaut.
+ */
+function nouveauVide(suggestion) {
   const annee = +$("#anneeNouveau").value || G.ANNEES[0];
-  const sc = nouveauScenario(`Nouveau planning ${annee}`, G.planningVide(annee));
-  etat.scenarios.push(sc); etat.courant = sc.id; etat.onglet = "plages";
+  let data = G.planningVide(annee), nom = `Nouveau planning ${annee}`;
+  if (suggestion === true) {
+    const m = G.charger(data, etat.aEviter);
+    const res = G.suggerer(m, G.OPTIONS_DEFAUT, G.libres(m));
+    if (res) { data = G.exporter(res); nom = `Suggestion ${annee}`; }
+  }
+  const sc = nouveauScenario(nom, data);
+  etat.scenarios.push(sc); etat.courant = sc.id; etat.onglet = suggestion === true ? "calendrier" : "plages";
   rendre(); sauver();
 }
 function nomFichier(m) { return `planning_${m.data.annee}${m.data.suffixe || ""}.json`; }
@@ -721,11 +731,11 @@ $("#btnEviterVide").addEventListener("click", () => {
 });
 $("#btnEviterExporter").addEventListener("click", exporterEviter);
 $("#anneeNouveau").innerHTML = G.ANNEES.map((a) => `<option value="${a}">${a}</option>`).join("");
-$("#btnNouveau").addEventListener("click", nouveauVide);
+$("#btnNouveau").addEventListener("click", () => nouveauVide());
 $("#btnEviter").addEventListener("click", () => $("#fichierEviter").click());
 $("#fichierEviter").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });
 $("#btnRetirerEviter").addEventListener("click", () => definirEviter(null));
-$("#btnVide").addEventListener("click", nouveauVide);
+$("#btnVide").addEventListener("click", () => nouveauVide());
 $("#btnImporter").addEventListener("click", () => $("#fichier").click());
 $("#fichier").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });
 $("#btnExporter").addEventListener("click", exporter);
@@ -738,8 +748,8 @@ window.addEventListener("dragover", (ev) => ev.preventDefault());
 window.addEventListener("drop", (ev) => { ev.preventDefault(); importer([...ev.dataTransfer.files].filter((f) => f.name.endsWith(".json"))); });
 
 restaurer();
-// Premier lancement (aucun scénario dans ce navigateur) : on démarre sur un planning vide.
-if (!etat.scenarios.length) nouveauVide();
+// Premier lancement (aucun scénario dans ce navigateur) : on démarre sur une suggestion (options par défaut).
+if (!etat.scenarios.length) nouveauVide(true);
 else rendre();
 </script>
 </body>

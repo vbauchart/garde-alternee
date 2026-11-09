@@ -71,6 +71,8 @@ uv run python scripts/generate_pdf.py data/planning_2027_lundi.json
 
 En ligne : <https://vbauchart.github.io/garde-alternee/> (aucune donnée n'y est
 publiée ; les JSON chargés restent dans le navigateur).
+Au premier lancement, l'éditeur propose directement une suggestion de planning
+(options par défaut) ; « Nouveau » crée un planning vide de l'année choisie.
 
 `outil/editeur.html` : ouvrir le fichier dans un navigateur (double-clic, sans
 serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-déposer).
