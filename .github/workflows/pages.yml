@@ -26,7 +26,7 @@ jobs:
       - name: Préparer le site (éditeur seul, sans données)
         run: |
           mkdir _site
-          cp outil/core.js outil/impression.js outil/jspdf.umd.min.js _site/
+          cp outil/core.js outil/impression.js outil/a_eviter_defaut.js outil/jspdf.umd.min.js _site/
           cp outil/editeur.html _site/index.html
           cp outil/editeur.html _site/editeur.html
       - uses: actions/configure-pages@v5

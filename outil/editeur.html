@@ -250,6 +250,7 @@
 
 <script src="core.js"></script>
 <script src="impression.js"></script>
+<script src="a_eviter_defaut.js"></script>
 <script src="jspdf.umd.min.js"></script>
 <script>
 "use strict";
@@ -770,7 +771,15 @@ window.addEventListener("drop", (ev) => { ev.preventDefault(); importer([...ev.d
 
 restaurer();
 // Premier lancement (aucun scénario dans ce navigateur) : on démarre sur une suggestion (options par défaut).
-if (!etat.scenarios.length) nouveauVide(true);
+if (!etat.scenarios.length) {
+  // jours à éviter par défaut (outil/a_eviter_defaut.js), pris en compte par la suggestion
+  if (!etat.aEviter && window.A_EVITER_DEFAUT) {
+    const d = window.A_EVITER_DEFAUT;
+    etat.aEviter = { nom: `a_eviter_${d.annee}.json (par défaut)`, annee: d.annee, description: d.description,
+      jours_a_eviter: d.jours_a_eviter };
+  }
+  nouveauVide(true);
+}
 else rendre();
 </script>
 </body>
