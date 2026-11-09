@@ -105,9 +105,15 @@
 
   // ---------- Modèle ----------
 
-  /** Construit le modèle de travail à partir d'un JSON de planning. */
-  function charger(data) {
+  /**
+   * Construit le modèle de travail à partir d'un JSON de planning et, en
+   * option, du planning de Tierce chargé à part ({annee, tierce_indisponible}).
+   * Sans Tierce, les nuits libres à deux ne sont ni calculées ni optimisées.
+   */
+  function charger(data, tierce) {
     const cal = calendrier(data.annee);
+    const avecTierce = !!(tierce || data.tierce_indisponible);
+    if (tierce) data = Object.assign({}, data, { tierce_indisponible: tierce.tierce_indisponible || [] });
     const garde = plagesVersJours(cal, data.garde_segments, (p) => CODE[p.parent]);
     const own = new Array(cal.n);
     for (let i = 0; i < cal.n; i++) own[i] = garde.get(i) || null;
@@ -132,7 +138,7 @@
     const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
     return {
       cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, tierceBusy, tierceNuits, tierceLabels,
-      feries, verrous, data,
+      feries, verrous, data, avecTierce,
     };
   }
 
@@ -155,6 +161,7 @@
   /** JSON exportable (mêmes champs que l'original + garde/règles modifiées). */
   function exporter(m, extra) {
     const d = JSON.parse(JSON.stringify(m.data));
+    delete d.tierce_indisponible; // le planning de Tierce vit dans son propre fichier
     d.garde_segments = plages(m);
     d.regles = ecrireRegles(m.regles, d.regles);
     if (m.verrous.size) d.verrous = [...m.verrous].sort((a, b) => a - b).map((i) => m.cal.iso[i]);
@@ -217,6 +224,7 @@
 
   /** Nuits libres à deux : jour i = nuit du soir de i au matin de i+1, sans enfants pour Papa ni Tierce. */
   function libres(m, ech) {
+    if (!m.avecTierce) return new Set(); // pas de planning de Tierce : rien à calculer
     ech = ech || echanges(m);
     const libre = (i) => nuitDe(m, ech, i) === "M" && !m.tierceNuits.has(i);
     const out = new Set();
@@ -365,6 +373,8 @@
       refLibres = we;
     }
     const o = Object.assign({}, OPTIONS_DEFAUT, opts || {});
+    // Sans planning de Tierce, on optimise seulement blocs + équité.
+    if (!m.avecTierce) Object.assign(o, { bonusWeekend: 0, poidsAlignementTierce: 0, garderLibres: false });
     const at = atomes(m), N = at.length, cal = m.cal;
     const fix = new Array(N).fill(null);
     at.forEach((t, i) => {
@@ -481,7 +491,6 @@
         parents: { papa: "Papa", maman: "Maman" } },
       regles: ecrireRegles(lireRegles({})),
       garde_segments: [{ du: `${annee}-01-01`, au: `${annee}-12-31`, parent: "papa" }],
-      tierce_indisponible: [],
       vacances: JSON.parse(JSON.stringify(VACANCES[annee] || { zone_c: [], zone_b: [] })),
       feries: feriesFrance(annee),
     };

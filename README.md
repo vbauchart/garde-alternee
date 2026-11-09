@@ -6,7 +6,8 @@ Données et scripts pour construire, maintenir et imprimer le planning de garde
 ## Idée générale
 
 Une **source de vérité unique** (`data/planning_2027.json`) décrit le planning de
-garde de Papa. Les **deux PDF sont dérivés** de ce fichier :
+garde de Papa. Le **planning de Tierce** est un fichier séparé et facultatif
+(`data/tierce_2027.json`). Les **deux PDF sont dérivés** de ces fichiers :
 
 - **`papa_maman_<json>.pdf`** — document de négociation Papa /
   Maman : qui garde les enfants chaque jour + total des jours.
@@ -18,7 +19,8 @@ Les règles sont décrites dans [`CONTRAINTES.md`](CONTRAINTES.md).
 ## Arborescence
 
 ```
-data/planning_2027.json          Source de vérité (garde, Tierce, vacances, fériés)
+data/planning_2027.json          Source de vérité (garde, règles, vacances, fériés)
+data/tierce_2027.json               Planning de Tierce (facultatif, chargé à part)
 scripts/common.py                Chargement + calculs + rendu partagés
 scripts/generate_pdf.py          -> papa_maman_<json>.pdf + papa_tierce_<json>.pdf
 scripts/count_days.py            Comptage des jours + contrôle d'équité
@@ -101,12 +103,27 @@ La logique (`outil/core.js`) reprend les mêmes règles que `scripts/common.py`
 3. Régénérer les PDF (`generate_pdf.py`).
 
 Les nuits « libres à deux » (cases LIBRE = nuit du soir de ce jour au matin
-suivant) ne sont pas saisies : elles sont calculées à partir de la garde de Papa et du planning de Tierce (`tierce_indisponible`).
+suivant) ne sont pas saisies : elles sont calculées à partir de la garde de Papa et du planning de Tierce (`tierce_indisponible` de `data/tierce_2027.json`).
+
+## Planning de Tierce (fichier séparé)
+
+`data/tierce_<année>.json` = `{"annee": 2027, "tierce_indisponible": [...]}`. Il est
+**facultatif** :
+
+- Scripts : pris automatiquement s'il est à côté du planning, ou `--tierce FICHIER`.
+  Sans lui, `count_days.py` ne calcule pas les nuits libres et `generate_pdf.py`
+  ne produit que le PDF Papa / Maman.
+- Éditeur : bouton « Planning de Tierce… » (ou glisser le fichier). Il est commun à
+  tous les scénarios et pris en compte dans les nuits libres, les alertes et la
+  suggestion (bonus week-ends libres à deux). Sans lui, la suggestion n'optimise
+  que l'équité et la longueur des blocs.
+- Un ancien planning contenant encore `tierce_indisponible` reste accepté (l'éditeur
+  en extrait le planning de Tierce).
 
 ## État des données
 
 - **`garde_segments`** : transcrit des PDF d'origine (181/184) puis négocié
   (**Papa 182 / Maman 183**). Variante lundi : 183/182.
-- **`tierce_indisponible`** : semaines réelles de Tierce, transcrites du PDF Papa & Tierce
+- **`tierce_indisponible`** (`data/tierce_2027.json`) : semaines réelles de Tierce, transcrites du PDF Papa & Tierce
   d'origine (planning fixe).
 - **`vacances`** : dates zones B et C reprises du PDF d'origine.

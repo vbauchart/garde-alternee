@@ -43,7 +43,8 @@ respecter.
   lundi (ou le jour de reprise) le matin (« fin 08h » / « fin 10h »).
 - Jour férié le lundi : décalage au mardi (ex. reprise le mar. 18/05 après le
   lundi de Pentecôte, fin le mar. 30/03 après le lundi de Pâques).
-- Données : `tierce_indisponible` (transcrit du PDF Papa & Tierce d'origine).
+- Données : `tierce_indisponible` dans le fichier séparé `data/tierce_2027.json`
+  (transcrit du PDF Papa & Tierce d'origine).
 
 ## Nuits et week-ends libres à deux
 
@@ -134,6 +135,6 @@ Noël (25/12).
 
 - `garde_segments` : transcrit des PDF d'origine (181/184), puis négocié
   (182/183).
-- `tierce_indisponible` : **exact**, transcrit du PDF Papa & Tierce d'origine.
+- `tierce_indisponible` (`data/tierce_2027.json`) : **exact**, transcrit du PDF Papa & Tierce d'origine.
 - `vacances` : dates reprises de l'ombrage du PDF d'origine (zones B et C).
 - `feries` : jours fériés 2027.

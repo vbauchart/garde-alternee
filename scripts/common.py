@@ -1,7 +1,8 @@
 """Fonctions partagées : chargement des données, calcul des gardes, rendu calendrier.
 
-La source de vérité est data/planning_2027.json. Les deux PDF sont dérivés
-de ce module (voir generate_pdf.py).
+La source de vérité est data/planning_2027.json ; le planning de Tierce est dans
+un fichier séparé et facultatif (data/tierce_2027.json). Les deux PDF sont
+dérivés de ce module (voir generate_pdf.py).
 """
 
 from __future__ import annotations
@@ -37,16 +38,48 @@ JOURS_FR = ["L", "M", "M", "J", "V", "S", "D"]  # lundi=0 .. dimanche=6
 
 # --- Chargement et modèle --------------------------------------------------
 
-def charger(path=None) -> dict:
+def lire_arguments() -> tuple[list[str], str | None]:
+    """Arguments de la ligne de commande : [planning.json ...] [--tierce tierce.json]."""
+    import sys
+    args, tierce = sys.argv[1:], None
+    if "--tierce" in args:
+        k = args.index("--tierce")
+        if k + 1 >= len(args):
+            sys.exit("--tierce attend le chemin d'un fichier JSON (ex. data/tierce_2027.json)")
+        tierce = args[k + 1]
+        del args[k:k + 2]
+    return args, tierce
+
+
+def charger(path=None, tierce=None) -> dict:
     """Charge un fichier de planning (par défaut data/planning_2027.json).
 
-    Usage en ligne de commande : le 1er argument éventuel est le chemin du JSON.
+    Le planning de Tierce est un fichier SÉPARÉ et facultatif ({annee,
+    tierce_indisponible}) : `tierce` s'il est donné, sinon `tierce_<annee>.json` à côté
+    du planning s'il existe. Un ancien planning contenant encore
+    `tierce_indisponible` reste accepté. Ajoute data["avec_tierce"] (bool).
+
+    Usage en ligne de commande : [planning.json] [--tierce tierce.json].
     """
     if path is None:
-        import sys
-        path = sys.argv[1] if len(sys.argv) > 1 else DATA
+        args, tierce_cli = lire_arguments()
+        path = args[0] if args else DATA
+        tierce = tierce or tierce_cli
+    path = Path(path)
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if tierce is None and "tierce_indisponible" not in data:
+        auto = path.parent / f"tierce_{data['annee']}.json"
+        tierce = auto if auto.exists() else None
+    if tierce is not None:
+        with open(tierce, encoding="utf-8") as f:
+            v = json.load(f)
+        if v.get("annee", data["annee"]) != data["annee"]:
+            print(f"⚠  {tierce} : planning de Tierce {v['annee']} ≠ planning {data['annee']}")
+        data["tierce_indisponible"] = v["tierce_indisponible"]
+    data["avec_tierce"] = "tierce_indisponible" in data
+    data.setdefault("tierce_indisponible", [])
+    return data
 
 
 def _d(s: str) -> dt.date:

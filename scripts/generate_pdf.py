@@ -2,8 +2,11 @@
 """Génère les deux PDF (Papa / Maman et Papa & Tierce) d'un ou plusieurs JSON.
 
 Usage :
-    uv run python scripts/generate_pdf.py                  # tous les data/*.json
-    uv run python scripts/generate_pdf.py data/planning_2027_lundi.json [...]
+    uv run python scripts/generate_pdf.py                  # tous les data/planning_*.json
+    uv run python scripts/generate_pdf.py data/planning_2027_lundi.json [...] [--tierce data/tierce_2027.json]
+
+Le planning de Tierce est facultatif : par défaut tierce_<annee>.json à côté du
+planning. Sans lui, seul le PDF Papa / Maman est généré.
 
 Le nom du JSON sert de suffixe au nom des PDF (à la racine du dépôt) :
     data/planning_2027_lundi.json -> papa_maman_planning_2027_lundi.pdf
@@ -142,12 +145,16 @@ def papa_tierce(data: dict, nom: str):
 
 
 def main():
-    chemins = sys.argv[1:] or sorted(str(p) for p in (c.RACINE / "data").glob("*.json"))
+    chemins, tierce = c.lire_arguments()
+    chemins = chemins or sorted(str(p) for p in (c.RACINE / "data").glob("planning_*.json"))
     for chemin in chemins:
-        data = c.charger(chemin)
+        data = c.charger(chemin, tierce)
         nom = Path(chemin).stem
         papa_maman(data, nom)
-        papa_tierce(data, nom)
+        if data["avec_tierce"]:
+            papa_tierce(data, nom)
+        else:
+            print(f"  (pas de planning de Tierce : papa_tierce_{nom}.pdf non généré)")
 
 
 if __name__ == "__main__":
