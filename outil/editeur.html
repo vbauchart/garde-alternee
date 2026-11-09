@@ -66,8 +66,8 @@
   td.p { background: var(--papa); } td.m { background: var(--maman); } td.v { background: var(--a-eviter); }
   td.libre { background: var(--libre); color: var(--libre-ink); font-weight: 600; }
   td.vacRef { background: var(--vacRef); } td.ferie { background: var(--ferie); }
-  td.vac0 { box-shadow: inset 4px 0 0 var(--vacInd1); } td.vac1 { box-shadow: inset -4px 0 0 var(--vacInd2); }
-  td.vac0.vac1 { box-shadow: inset 4px 0 0 var(--vacInd1), inset -4px 0 0 var(--vacInd2); }
+  td.vacInd1 { background: var(--vacInd1); } td.vacInd2 { background: var(--vacInd2); }
+  .mois th.zi { font-size: 8px; padding: 0; font-weight: 400; } .mois td.zi { padding: 0; }
   td.horsregle { outline: 2px solid var(--err); outline-offset: -2px; }
   .modifie::before { content: "•"; color: var(--accent); margin-right: 2px; }
   .verrou::after { content: " 🔒"; font-size: 9px; }
@@ -201,7 +201,7 @@
             <legend>Zone de vacances scolaires</legend>
             <label class="champ">Zone de référence <select id="zone"></select></label>
             <p class="aide">Ses vacances déclenchent la règle d'échange des vacances et l'été (blocs plus longs).
-              Les deux autres zones sont affichées à titre indicatif dans le calendrier.</p>
+              Les deux autres zones sont affichées à titre indicatif, en petites colonnes, dans le calendrier.</p>
           </fieldset>
           <fieldset>
             <legend>Variante</legend>
@@ -456,15 +456,24 @@ function rendreAlertes(sc) {
     : `<li class="info">Aucune alerte.</li>`;
 }
 
-/** Colonne vacances : férié ou zone de référence en fond, zones indicatives en liserés. */
+/** Colonne de la zone de référence : férié prioritaire, sinon vacances. */
 function celluleVacances(m, i) {
-  const ref = G.vacances(m).has(i), ind = G.zonesIndicatives(m);
-  let vac = m.feries.has(i) ? "ferie" : (ref ? "vacRef" : "");
+  const ref = G.vacances(m).has(i);
+  const vac = m.feries.has(i) ? "ferie" : (ref ? "vacRef" : "");
   const titres = [];
   if (m.feries.has(i)) titres.push(m.feries.get(i));
   if (ref) titres.push(`Vacances zone ${m.regles.zone}`);
-  ind.forEach((z, k) => { if (m.vac[z].has(i)) { vac += ` vac${k}`; titres.push(`Zone ${z} (indicatif)`); } });
   return { vac, titreVac: titres.join(" · ") };
+}
+/** Petites colonnes des zones indicatives (en-têtes et cellules du jour i). */
+function colonnesIndicatives(m) {
+  const ind = G.zonesIndicatives(m);
+  return {
+    cols: ind.map(() => `<col style="width:9px">`).join(""),
+    entetes: ind.map((z) => `<th class="zi" title="Zone ${z} (indicatif)">${z}</th>`).join(""),
+    cellules: (i) => ind.map((z, k) => m.vac[z].has(i)
+      ? `<td class="zi vacInd${k + 1}" title="Vacances zone ${z} (indicatif)"></td>` : `<td class="zi"></td>`).join(""),
+  };
 }
 function rendreLegendeZones(m) {
   const ind = G.zonesIndicatives(m);
@@ -475,11 +484,11 @@ function rendreLegendeZones(m) {
 }
 
 function rendreCalendrier(sc, ech, lib) {
-  const m = sc.model, cal = m.cal;
+  const m = sc.model, cal = m.cal, zi = colonnesIndicatives(m);
   let html = "";
   for (let mo = 0; mo < 12; mo++) {
-    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col><col style="width:22px"></colgroup>
-      <tr><th></th><th>Papa</th><th>Maman</th><th>À éviter</th><th title="Vacances zone ${m.regles.zone}">${m.regles.zone}</th></tr>`;
+    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col>${zi.cols}<col style="width:22px"></colgroup>
+      <tr><th></th><th>Papa</th><th>Maman</th><th>À éviter</th>${zi.entetes}<th title="Vacances zone ${m.regles.zone}">${m.regles.zone}</th></tr>`;
     for (let i = 0; i < cal.n; i++) {
       if (cal.mois[i] !== mo) continue;
       const o = m.own[i], e = ech.get(i), we = cal.jour[i] >= 5;
@@ -496,7 +505,7 @@ function rendreCalendrier(sc, ech, lib) {
       const { vac, titreVac } = celluleVacances(m, i);
       const jcls = (o !== sc.refOwn[i] ? "modifie" : "") + (m.verrous.has(i) ? " verrou" : "");
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${jcls}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
-        <td class="${p}">${pt}</td><td class="${ma}">${mt}</td><td class="${aEviter}">${esc(vt)}</td><td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
+        <td class="${p}">${pt}</td><td class="${ma}">${mt}</td><td class="${aEviter}">${esc(vt)}</td>${zi.cellules(i)}<td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
     }
     html += `</table></div>`;
   }
@@ -568,7 +577,7 @@ function rendreRegles(sc) {
   const m = sc.model;
   champRegle("#regleScolaire", m.regles.scolaire);
   champRegle("#regleVacances", m.regles.vacances);
-  $("#zone").innerHTML = G.ZONES.map((z) => `<option value="${z}"${z === m.regles.zone ? " selected" : ""}>Zone ${z}${m.vac[z] ? "" : " (dates inconnues)"}</option>`).join("");
+  $("#zone").innerHTML = G.ZONES.map((z) => `<option value="${z}"${z === m.regles.zone ? " selected" : ""}>Zone ${z}</option>`).join("");
   $("#suffixe").value = m.data.suffixe || "";
   $("#titreVariante").value = m.data.titre_variante || "";
   const fs = $("#optionsSuggestion");
