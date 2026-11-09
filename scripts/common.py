@@ -173,21 +173,8 @@ def jours_echange(segments, regles=None, feries=()) -> dict:
 
 
 def nuits_a_eviter(data: dict) -> set:
-    """Nuits à éviter : du soir de « du » au matin de « au ».
-
-    La nuit d'une date x va du soir de x au matin de x+1. Si la plage a une
-    « fin » (elle se termine dans la journée de « au »), la nuit de « au »
-    n'est pas comptée ; sinon (fin d'année) elle l'est.
-    """
-    nuits = set()
-    for seg in data["jours_a_eviter"]:
-        d, fin = _d(seg["du"]), _d(seg["au"])
-        if seg.get("fin"):
-            fin -= dt.timedelta(days=1)
-        while d <= fin:
-            nuits.add(d)
-            d += dt.timedelta(days=1)
-    return nuits
+    """Journées à éviter : tous les jours de « du » à « au » inclus (journée et soir)."""
+    return ensemble_de_segments(data["jours_a_eviter"])
 
 
 def jours_libres(data: dict) -> set:
@@ -212,17 +199,6 @@ def weekends_libres(libres: set) -> list:
     Retourne les samedis."""
     return sorted(x for x in libres
                   if x.weekday() == 5 and x - dt.timedelta(days=1) in libres)
-
-
-def libelles_a_eviter(data: dict) -> dict:
-    """Libellés des jours à éviter : {date: « dès 11h » / « fin matin »}."""
-    lab = {}
-    for seg in data["jours_a_eviter"]:
-        if seg.get("des"):
-            lab[_d(seg["du"])] = f"dès {seg['des']}"
-        if seg.get("fin"):
-            lab[_d(seg["au"])] = f"fin {seg['fin']}"
-    return lab
 
 
 def compter(data: dict) -> dict:

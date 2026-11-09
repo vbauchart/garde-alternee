@@ -85,7 +85,7 @@ serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-dépos
 - **Plages** : édition du/au/parent ; l'année reste toujours couverte.
 - **Jours à éviter** : calendrier où un clic marque/démarque un jour à éviter
   (Maj+clic = jusqu'au dernier jour cliqué) ; seuls les jours à éviter y sont
-  affichés. Tableau des périodes pour les heures « dès » / « fin ».
+  affichés (journées pleines). Tableau des périodes du / au.
   « Exporter les jours à éviter » télécharge `a_eviter_<année>.json` (à placer dans `data/`).
 - **Règles & suggestion** : zone de vacances de référence (A, B ou C ; les deux
   autres sont affichées à titre indicatif dans le calendrier), jour, heure et
@@ -121,10 +121,9 @@ est libre quand Papa n'a pas les enfants le soir (chez Maman cette nuit-là)
 
 ## Jours à éviter (fichier séparé)
 
-`data/a_eviter_<année>.json` = `{"annee": 2027, "jours_a_eviter": [{"du", "au", "des"?, "fin"?}, ...]}` :
-périodes où Papa préfère ne pas avoir la garde, du jour « du » (dès l'heure
-« des ») au jour « au » (jusqu'à l'heure « fin » ; sans « fin », le soir de
-« au » est aussi à éviter). Ce fichier est **facultatif** :
+`data/a_eviter_<année>.json` = `{"annee": 2027, "jours_a_eviter": [{"du", "au"}, ...]}` :
+périodes où Papa préfère ne pas avoir la garde, en **journées pleines**
+(journée et soir) du jour « du » au jour « au » inclus. Ce fichier est **facultatif** :
 
 - Scripts : pris automatiquement s'il est à côté du planning, ou `--a-eviter FICHIER`.
   Sans lui, `count_days.py` ne calcule pas les journées et soirs libres et

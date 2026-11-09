@@ -76,7 +76,7 @@
         const e = ech.get(i);
         if (e && e.rend === "P") papa = [BLEU, `fin ${e.heure}`];
         else if (e && e.recoit === "P") papa = [BLEU, `dès ${e.heure}`];
-        const evite = m.eviterJours.has(i) ? [ORANGE, m.eviterLabels.get(i) || null] : [null, null];
+        const evite = m.eviterJours.has(i) ? [ORANGE, null] : [null, null];
         const lettres = ind.filter((z) => m.vac[z].has(i)).join(" ");
         const zi = lettres ? [VIOLET, lettres] : [null, null];
         return { cellules: [papa, evite, zi, colonneZone(i)], libre: lib.has(i) };

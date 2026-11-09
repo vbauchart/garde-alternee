@@ -94,7 +94,6 @@ def papa_a_eviter(data: dict, nom: str):
     garde = c.jours_de_segments(data["garde_segments"])
     echanges = c.jours_echange(data["garde_segments"], data["regles"], data["feries"])
     a_eviter = c.ensemble_de_segments(data["jours_a_eviter"])
-    a_eviter_lab = c.libelles_a_eviter(data)
     libres = c.jours_libres(data)
     zone = c.zone_reference(data)
     zones = c.vacances_zones(data)
@@ -114,7 +113,7 @@ def papa_a_eviter(data: dict, nom: str):
             elif recoit == "papa":
                 papa_cell = (c.BLEU, f"dès {heure}")
         # Colonne À éviter : orange les jours à éviter
-        a_eviter_cell = (c.ORANGE, a_eviter_lab.get(date)) if date in a_eviter else (None, None)
+        a_eviter_cell = (c.ORANGE, None) if date in a_eviter else (None, None)
         # Colonnes vacances
         # Zones indicatives regroupées : lettres des zones en vacances ce jour-là
         ind = " ".join(z for z in indicatives if date in zones[z])

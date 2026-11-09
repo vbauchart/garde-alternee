@@ -138,18 +138,10 @@
       }
     }
     const eviterJours = new Set(plagesVersJours(cal, data.jours_a_eviter || []).keys());
-    // Soirs à éviter (soir de i -> matin de i+1) : le soir du jour « au » n'est pas compté s'il y a une « fin ».
-    const eviterNuits = new Set(eviterJours);
-    for (const p of data.jours_a_eviter || []) if (p.fin) eviterNuits.delete(idx(cal, p.au));
-    const eviterLabels = new Map();
-    for (const p of data.jours_a_eviter || []) {
-      if (p.des) eviterLabels.set(idx(cal, p.du), `dès ${p.des}`);
-      if (p.fin) eviterLabels.set(idx(cal, p.au), `fin ${p.fin}`);
-    }
     const feries = new Map((data.feries || []).map((f) => [idx(cal, f.date), f.nom]));
     const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
     return {
-      cal, own, regles: lireRegles(data.regles), vac, etes, eviterJours, eviterNuits, eviterLabels,
+      cal, own, regles: lireRegles(data.regles), vac, etes, eviterJours,
       feries, verrous, data, avecEviter,
     };
   }
@@ -246,7 +238,7 @@
   function libres(m, ech) {
     if (!m.avecEviter) return new Set(); // pas de jours à éviter : rien à calculer
     ech = ech || echanges(m);
-    const libre = (i) => nuitDe(m, ech, i) === "M" && m.eviterNuits.has(i);
+    const libre = (i) => nuitDe(m, ech, i) === "M" && m.eviterJours.has(i);
     const out = new Set();
     for (let i = 0; i < m.cal.n; i++) if (libre(i)) out.add(i);
     return out;
@@ -404,7 +396,7 @@
     });
     const et = ete(m);
     const estEte = at.map((t) => t.jours.length > 0 && t.jours.every((d) => et.has(d)));
-    const aEviter = (d) => m.eviterNuits.has(d); // soir à éviter
+    const aEviter = (d) => m.eviterJours.has(d); // journée à éviter
     // bonus week-end : dimanche dans [debut de l'atome, fin exclue)
     function bonus(i, prev, cur) {
       if (cur !== "M") return 0;
@@ -421,7 +413,7 @@
         };
         if (okJour(s) && okJour(sam)) b += o.bonusWeekend;
       }
-      for (const d of t.interieur) if (cal.jour[d] === 5 && !m.eviterNuits.has(d)) b -= o.poidsAlignementEviter;
+      for (const d of t.interieur) if (cal.jour[d] === 5 && !m.eviterJours.has(d)) b -= o.poidsAlignementEviter;
       return b;
     }
     // états : clé "o|run|ete|diff"
@@ -543,9 +535,8 @@
   }
 
   // ---------- Édition des jours à éviter ----------
-  // Une période {du, au, des?, fin?} = jours à éviter du jour « du » (dès
-  // l'heure « des ») au jour « au » (rendus le matin si « fin » : la nuit de
-  // « au » est alors libre).
+  // Une période {du, au} = journées pleines à éviter, du jour « du » au jour
+  // « au » inclus (journée et soir).
 
   function eviterJours(cal, periodes) {
     const jours = new Array(cal.n).fill(false);
@@ -553,25 +544,14 @@
     return jours;
   }
 
-  /**
-   * Jours -> périodes. Les heures « des » / « fin » sont reprises des
-   * anciennes périodes dont le début / la fin tombe dans la nouvelle ; une
-   * nouvelle fin vaut « matin » (sauf au 31 décembre : nuit comptée).
-   */
-  function eviterDepuisJours(cal, jours, anciennes) {
+  /** Jours -> périodes {du, au} (jours consécutifs regroupés). */
+  function eviterDepuisJours(cal, jours) {
     const out = [];
     for (let a = 0; a < cal.n; a++) {
       if (!jours[a]) continue;
       let b = a;
       while (b + 1 < cal.n && jours[b + 1]) b++;
-      const dans = (s) => { const i = idx(cal, s); return i >= a && i <= b; };
-      const deb = anciennes.filter((p) => p.des && dans(p.du))[0];
-      const fins = anciennes.filter((p) => dans(p.au));
-      const p = { du: cal.iso[a], au: cal.iso[b] };
-      if (deb) p.des = deb.des;
-      if (fins.length) { if (fins[fins.length - 1].fin) p.fin = fins[fins.length - 1].fin; }
-      else if (b < cal.n - 1) p.fin = "matin";
-      out.push(p);
+      out.push({ du: cal.iso[a], au: cal.iso[b] });
       a = b;
     }
     return out;
@@ -581,13 +561,13 @@
   function eviterBasculer(annee, periodes, a, b, valeur) {
     const cal = calendrier(annee), jours = eviterJours(cal, periodes);
     for (let i = Math.min(a, b); i <= Math.max(a, b); i++) jours[i] = valeur;
-    return eviterDepuisJours(cal, jours, periodes);
+    return eviterDepuisJours(cal, jours);
   }
 
   /** Remet une liste de périodes (éditée à la main) en ordre : tri, fusion, année. */
   function eviterNormaliser(annee, periodes) {
     const cal = calendrier(annee);
-    return eviterDepuisJours(cal, eviterJours(cal, periodes), periodes);
+    return eviterDepuisJours(cal, eviterJours(cal, periodes));
   }
 
   const api = {

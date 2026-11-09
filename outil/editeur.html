@@ -177,7 +177,7 @@
         <div id="eviterPresent">
           <p class="aide"><kbd>Clic</kbd> sur un jour : à éviter / pas à éviter ·
             <kbd>Maj</kbd>+clic : applique la même chose du dernier jour cliqué jusqu'à celui-ci ·
-            les heures « dès » (début) et « fin » (rendu le matin : la dernière nuit est libre) se règlent dans le tableau.
+            un jour à éviter l'est toute la journée et le soir.
             Seuls les jours à éviter sont affichés ici.</p>
           <p><button id="btnEviterExporter" class="primaire">Exporter les jours à éviter</button>
             <span class="aide" id="eviterNomExport"></span></p>
@@ -188,9 +188,8 @@
           </div>
           <div id="calendrierEviter" class="calendrier"></div>
           <h3>Périodes à éviter</h3>
-          <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Dès (heure)</th><th>Fin</th><th>Jours</th><th></th></tr></thead>
+          <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Jours</th><th></th></tr></thead>
             <tbody id="periodesEviter"></tbody></table>
-          <p class="aide">« Fin » vide = la nuit du dernier jour est aussi avec les enfants (ex. fin d'année).</p>
         </div>
       </div>
 
@@ -522,7 +521,7 @@ function rendreCalendrier(sc, ech, lib) {
       }
       let aEviter = "", vt = "";
       if (lib.has(i)) { aEviter = "libre"; vt = "LIBRE"; }
-      else if (m.eviterJours.has(i)) { aEviter = "v"; vt = m.eviterLabels.get(i) || ""; }
+      else if (m.eviterJours.has(i)) { aEviter = "v"; vt = ""; }
       const { vac, titreVac } = celluleVacances(m, i);
       const jcls = (o !== sc.refOwn[i] ? "modifie" : "") + (m.verrous.has(i) ? " verrou" : "");
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${jcls}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
@@ -559,7 +558,7 @@ function rendreEviter(sc) {
       if (cal.mois[i] !== mo) continue;
       const we = cal.jour[i] >= 5;
       let aEviter = "", libelle = "";
-      if (m.eviterJours.has(i)) { aEviter = "v"; libelle = m.eviterLabels.get(i) || ""; }
+      if (m.eviterJours.has(i)) { aEviter = "v"; libelle = ""; }
       const { vac, titreVac } = celluleVacances(m, i);
       const ancre = etat.eviterAncre === i ? "ancre" : "";
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${ancre}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
@@ -572,11 +571,9 @@ function rendreEviter(sc) {
   $("#periodesEviter").innerHTML = etat.aEviter.jours_a_eviter.map((p, k) => `<tr data-k="${k}">
       <td><input type="date" data-champ="du" value="${p.du}"></td>
       <td><input type="date" data-champ="au" value="${p.au}"></td>
-      <td><input type="text" data-champ="des" value="${esc(p.des || "")}" size="6" placeholder="ex. 11h"></td>
-      <td><input type="text" data-champ="fin" value="${esc(p.fin || "")}" size="6" placeholder="ex. matin"></td>
       <td class="n">${nb(p)}</td>
       <td><button data-action="suppr">Supprimer</button></td></tr>`).join("") ||
-    `<tr><td colspan="6" class="aide">Aucune période : clique sur des jours du calendrier.</td></tr>`;
+    `<tr><td colspan="4" class="aide">Aucune période : clique sur des jours du calendrier.</td></tr>`;
 }
 
 function champRegle(id, r) {

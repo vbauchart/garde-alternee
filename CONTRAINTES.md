@@ -36,10 +36,10 @@ respecter.
 
 ## Jours à éviter (fixes)
 
-- Périodes **lundi → lundi** en semaine scolaire ; en vacances, jusqu'au
-  **dimanche 11h**.
-- Chaque période va du jour « du » (dès l'heure « des ») au jour « au »
-  (jusqu'à l'heure « fin » : le soir de « au » n'est alors plus à éviter).
+- Périodes en semaine scolaire en général du **lundi au dimanche** (journées
+  pleines, sans heure de début ni de fin).
+- Chaque période couvre des **journées pleines** (journée et soir) du jour
+  « du » au jour « au » inclus.
 - Données : `jours_a_eviter` dans le fichier séparé `data/a_eviter_2027.json`.
 
 ## Journées, soirs et week-ends libres
