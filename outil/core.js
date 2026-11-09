@@ -428,7 +428,67 @@
     return res;
   }
 
+  // ---------- Planning vide (point de départ, sans données personnelles) ----------
+
+  // Calendrier scolaire officiel (données publiques) par année civile.
+  const VACANCES = {
+    2027: {
+      zone_c: [
+        { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
+        { nom: "Hiver", du: "2027-02-06", au: "2027-02-21" },
+        { nom: "Printemps", du: "2027-04-03", au: "2027-04-18" },
+        { nom: "Été", du: "2027-07-03", au: "2027-09-01" },
+        { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" },
+        { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
+      ],
+      zone_b: [
+        { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
+        { nom: "Hiver", du: "2027-02-20", au: "2027-03-07" },
+        { nom: "Printemps", du: "2027-04-17", au: "2027-05-02" },
+        { nom: "Été", du: "2027-07-03", au: "2027-09-01" },
+        { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" },
+        { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
+      ],
+    },
+  };
+
+  /** Jours fériés français (Pâques par l'algorithme de Meeus). */
+  function feriesFrance(annee) {
+    const a = annee % 19, b = Math.floor(annee / 100), c = annee % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const mois = Math.floor((h + l - 7 * m + 114) / 31), jour = ((h + l - 7 * m + 114) % 31) + 1;
+    const paques = Date.UTC(annee, mois - 1, jour);
+    const rel = (n) => new Date(paques + n * 86400000).toISOString().slice(0, 10);
+    const fixe = (mm, jj) => `${annee}-${mm}-${jj}`;
+    return [
+      { date: fixe("01", "01"), nom: "Jour de l'an" }, { date: rel(1), nom: "Lundi de Pâques" },
+      { date: fixe("05", "01"), nom: "Fête du Travail" }, { date: fixe("05", "08"), nom: "Victoire 1945" },
+      { date: rel(39), nom: "Ascension" }, { date: rel(50), nom: "Lundi de Pentecôte" },
+      { date: fixe("07", "14"), nom: "Fête nationale" }, { date: fixe("08", "15"), nom: "Assomption" },
+      { date: fixe("11", "01"), nom: "Toussaint" }, { date: fixe("11", "11"), nom: "Armistice" },
+      { date: fixe("12", "25"), nom: "Noël" },
+    ].sort((x, y) => (x.date < y.date ? -1 : 1));
+  }
+
+  /** JSON d'un planning neuf : toute l'année chez Papa, à découper ensuite. */
+  function planningVide(annee) {
+    annee = annee || 2027;
+    return {
+      annee,
+      meta: { description: `Nouveau planning de garde ${annee}, créé avec l'éditeur.`,
+        parents: { papa: "Papa", maman: "Maman" } },
+      regles: ecrireRegles(lireRegles({})),
+      garde_segments: [{ du: `${annee}-01-01`, au: `${annee}-12-31`, parent: "papa" }],
+      tierce_indisponible: [],
+      vacances: JSON.parse(JSON.stringify(VACANCES[annee] || { zone_c: [], zone_b: [] })),
+      feries: feriesFrance(annee),
+    };
+  }
+
   const api = {
+    planningVide, feriesFrance,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,
