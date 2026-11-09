@@ -26,6 +26,15 @@ CONTRAINTES.md                   Règles du planning
 pyproject.toml / uv.lock         Dépendances (gérées par uv)
 ```
 
+## Données (dépôt privé)
+
+Les JSON de `data/` et les PDF générés ne sont **pas** versionnés ici : ils
+vivent dans un dépôt privé séparé, à cloner dans `data/` (ignoré par Git) :
+
+```bash
+git clone https://github.com/vbauchart/garde-alternee-data.git data
+```
+
 ## Utilisation
 
 Les dépendances et l'exécution sont gérées par [uv](https://docs.astral.sh/uv/).
