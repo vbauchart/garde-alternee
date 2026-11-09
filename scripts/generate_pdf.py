@@ -13,7 +13,7 @@ Le nom du JSON sert de suffixe au nom des PDF (à la racine du dépôt) :
                                      papa_a_eviter_planning_2027_lundi.pdf
 
 - Papa / Maman : document de négociation, qui garde les enfants chaque jour.
-  Colonnes Papa | Maman | Zone C ; règles d'échange lues dans le JSON.
+  Colonnes Papa | Maman | Zone de référence ; règles d'échange lues dans le JSON.
 - Jours à éviter : disponibilité de Papa. Colonnes Papa | À éviter | B | C.
   Papa a les enfants (bleu) = jours « Papa » ; jour à éviter (orange) ;
   LIBRE (vert) = journée et soir libres (sans enfants, jour à éviter)
@@ -27,7 +27,7 @@ import common as c
 
 NOTE_PAPA_A_EVITER_DEFAUT = [
     "Jours d'échange coloriés (heure et attribution selon les règles du "
-    "planning). Vacances : zones B (indicative) et C.",
+    "planning). Vacances : zone de référence et zones indicatives.",
     "Objectif : maximiser les week-ends libres (vert). Notes "
     "personnalisables dans le JSON (champ notes_papa_a_eviter).",
 ]
@@ -37,10 +37,11 @@ def papa_maman(data: dict, nom: str):
     regles = data["regles"]
     garde = c.jours_de_segments(data["garde_segments"])
     echanges = c.jours_echange(data["garde_segments"], regles, data["feries"])
-    zone_c = c.ensemble_de_segments(data["vacances"]["zone_c"])
+    zone = c.zone_reference(data)
+    zone_ref = c.vacances_zones(data).get(zone, set())
     feries = {c._d(f["date"]) for f in data["feries"]}
 
-    entetes = ["Papa", "Maman", "Zone C"]
+    entetes = ["Papa", "Maman", f"Zone {zone}"]
 
     def remplir(date, ncols):
         parent = garde.get(date)
@@ -52,10 +53,10 @@ def papa_maman(data: dict, nom: str):
             labels = {rend: f"fin {heure}", recoit: f"dès {heure}"}
             papa_cell = (c.BLEU, labels.get("papa"))
             maman_cell = (c.ORANGE, labels.get("maman"))
-        # Colonne Zone C : férié prioritaire, sinon vacances
+        # Colonne zone de référence : férié prioritaire, sinon vacances
         if date in feries:
             zc = (c.ROUGE, None)
-        elif date in zone_c:
+        elif date in zone_ref:
             zc = (c.JAUNE, None)
         else:
             zc = (None, None)
@@ -63,7 +64,7 @@ def papa_maman(data: dict, nom: str):
 
     legende = [
         (c.BLEU, "Papa"), (c.ORANGE, "Maman"),
-        (c.JAUNE, "Vacances zone C"), (c.ROUGE, "Jour férié"),
+        (c.JAUNE, f"Vacances zone {zone}"), (c.ROUGE, "Jour férié"),
     ]
     sco, vac = regles["echange_scolaire"], regles["echange_vacances"]
     note1 = (f"Jour d'échange : colorié chez les deux. Période scolaire : "
@@ -95,11 +96,13 @@ def papa_a_eviter(data: dict, nom: str):
     a_eviter = c.ensemble_de_segments(data["jours_a_eviter"])
     a_eviter_lab = c.libelles_a_eviter(data)
     libres = c.jours_libres(data)
-    zone_b = c.ensemble_de_segments(data["vacances"]["zone_b"])
-    zone_c = c.ensemble_de_segments(data["vacances"]["zone_c"])
+    zone = c.zone_reference(data)
+    zones = c.vacances_zones(data)
+    zone_ref = zones.get(zone, set())
+    indicatives = [z for z in zones if z != zone]
     feries = {c._d(f["date"]) for f in data["feries"]}
 
-    entetes = ["Papa", "À éviter", "B", "C"]
+    entetes = ["Papa", "À éviter", "Ind.", zone]
 
     def remplir(date, ncols):
         # Colonne Papa : bleu quand Papa a les enfants (jour « Papa »)
@@ -113,10 +116,12 @@ def papa_a_eviter(data: dict, nom: str):
         # Colonne À éviter : orange les jours à éviter
         a_eviter_cell = (c.ORANGE, a_eviter_lab.get(date)) if date in a_eviter else (None, None)
         # Colonnes vacances
-        b_cell = (c.VIOLET, None) if date in zone_b else (None, None)
+        # Zones indicatives regroupées : lettres des zones en vacances ce jour-là
+        ind = " ".join(z for z in indicatives if date in zones[z])
+        b_cell = (c.VIOLET, ind) if ind else (None, None)
         if date in feries:
             cc_cell = (c.ROUGE, None)
-        elif date in zone_c:
+        elif date in zone_ref:
             cc_cell = (c.JAUNE, None)
         else:
             cc_cell = (None, None)
@@ -124,8 +129,8 @@ def papa_a_eviter(data: dict, nom: str):
 
     legende = [
         (c.BLEU, "Papa a les enfants"), (c.ORANGE, "Jour à éviter"),
-        (c.VERT, "Journée et soir libres"), (c.VIOLET, "Vacances zone B (Amiens)"),
-        (c.JAUNE, "Vacances zone C (Paris)"), (c.ROUGE, "Jour férié (col. C)"),
+        (c.VERT, "Journée et soir libres"), (c.VIOLET, f"Vacances zones {' / '.join(indicatives)} (indicatif)"),
+        (c.JAUNE, f"Vacances zone {zone}"), (c.ROUGE, f"Jour férié (col. {zone})"),
     ]
     note1, note2 = data.get("notes_papa_a_eviter") or data.get("notes_papa_a_eviter") or NOTE_PAPA_A_EVITER_DEFAUT
 

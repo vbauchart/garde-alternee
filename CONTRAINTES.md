@@ -111,11 +111,12 @@ Fichier séparé : `data/planning_2027_lundi.json` → PDF suffixés `_lundi`.
 
 ## Zones de vacances
 
-- **Zone C (Paris)** : **zone de référence**. C'est elle qui définit les plages
-  de vacances **de tous les enfants** (Papa et Maman) et qui
-  déclenche l'échange du samedi. Fenêtres listées dans le JSON.
-- **Zone B (Amiens)** : donnée **à titre purement indicatif** (elle n'intervient
-  pas dans les règles d'échange ni dans les disponibilités).
+- La **zone de référence** se choisit dans les règles (`regles.zone` : A, B
+  ou C ; **B par défaut**). Ses vacances définissent les plages de vacances
+  des enfants, déclenchent l'échange du samedi et fixent l'été (blocs plus
+  longs). Le planning 2027 négocié utilise la **zone C**.
+- Les **deux autres zones** sont affichées **à titre purement indicatif**
+  (elles n'interviennent ni dans les règles d'échange ni dans les calculs).
 
 ## Jours fériés 2027
 
@@ -129,5 +130,5 @@ Noël (25/12).
 - `garde_segments` : transcrit des PDF d'origine (181/184), puis négocié
   (182/183).
 - `jours_a_eviter` (`data/a_eviter_2027.json`) : **exact**, complément des semaines du PDF d'origine.
-- `vacances` : dates reprises de l'ombrage du PDF d'origine (zones B et C).
+- `vacances` : calendrier officiel des zones A, B et C.
 - `feries` : jours fériés 2027.

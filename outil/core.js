@@ -20,6 +20,11 @@
     { jour: "samedi", heure: "18h", jour_attribue_a: "rend" },
   ];
 
+  // Zones de vacances scolaires : la zone de référence (regles.zone) déclenche
+  // la règle d'échange des vacances et l'été ; les autres sont indicatives.
+  const ZONES = ["A", "B", "C"];
+  const ZONE_DEFAUT = "B";
+
   const OPTIONS_DEFAUT = {
     blocMax: 10, blocMaxEte: 14, blocMin: 5,
     poidsEquite: 40, bonusWeekend: 30, poidsAlignementEviter: 0.3,
@@ -81,7 +86,9 @@
         attr: e.jour_attribue_a || "rend",
       };
     }
-    return { scolaire: regle("echange_scolaire", "mercredi"), vacances: regle("echange_vacances", "samedi") };
+    const zone = String(regles.zone || ZONE_DEFAUT).toUpperCase();
+    return { scolaire: regle("echange_scolaire", "mercredi"), vacances: regle("echange_vacances", "samedi"),
+      zone: ZONES.includes(zone) ? zone : ZONE_DEFAUT };
   }
 
   function texteAttribution(r) {
@@ -96,6 +103,7 @@
     const echanges = [{ jour: JOURS[s.jour], heure: s.heure, jour_attribue_a: s.attr }];
     if (v.jour !== s.jour) echanges.push({ jour: JOURS[v.jour], heure: v.heure, jour_attribue_a: v.attr });
     return Object.assign({}, ancien || {}, {
+      zone: r.zone || ZONE_DEFAUT,
       echange_scolaire: { jour: JOURS[s.jour], heure: s.heure },
       echange_vacances: { jour: JOURS[v.jour], heure: v.heure },
       attribution: texteAttribution(r),
@@ -117,13 +125,17 @@
     const garde = plagesVersJours(cal, data.garde_segments, (p) => CODE[p.parent]);
     const own = new Array(cal.n);
     for (let i = 0; i < cal.n; i++) own[i] = garde.get(i) || null;
-    const vacC = new Set(plagesVersJours(cal, (data.vacances || {}).zone_c || []).keys());
-    const vacB = new Set(plagesVersJours(cal, (data.vacances || {}).zone_b || []).keys());
-    // plus longue période de vacances zone C = été (blocs plus longs autorisés)
-    let ete = new Set();
-    for (const p of (data.vacances || {}).zone_c || []) {
-      const s = new Set(plagesVersJours(cal, [p]).keys());
-      if (s.size > ete.size) ete = s;
+    // vacances par zone ; la plus longue période d'une zone = son été (blocs plus longs autorisés)
+    const vac = {}, etes = {};
+    for (const z of ZONES) {
+      const periodes = (data.vacances || {})[`zone_${z.toLowerCase()}`];
+      if (!periodes) continue;
+      vac[z] = new Set(plagesVersJours(cal, periodes).keys());
+      etes[z] = new Set();
+      for (const p of periodes) {
+        const s = new Set(plagesVersJours(cal, [p]).keys());
+        if (s.size > etes[z].size) etes[z] = s;
+      }
     }
     const eviterJours = new Set(plagesVersJours(cal, data.jours_a_eviter || []).keys());
     // Soirs à éviter (soir de i -> matin de i+1) : le soir du jour « au » n'est pas compté s'il y a une « fin ».
@@ -137,10 +149,18 @@
     const feries = new Map((data.feries || []).map((f) => [idx(cal, f.date), f.nom]));
     const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
     return {
-      cal, own, regles: lireRegles(data.regles), vacC, vacB, ete, eviterJours, eviterNuits, eviterLabels,
+      cal, own, regles: lireRegles(data.regles), vac, etes, eviterJours, eviterNuits, eviterLabels,
       feries, verrous, data, avecEviter,
     };
   }
+
+  const VIDE = new Set();
+  /** Jours de vacances de la zone de référence. */
+  function vacances(m) { return m.vac[m.regles.zone] || VIDE; }
+  /** Été de la zone de référence. */
+  function ete(m) { return m.etes[m.regles.zone] || VIDE; }
+  /** Zones indicatives (toutes sauf la référence) présentes dans les données. */
+  function zonesIndicatives(m) { return ZONES.filter((z) => z !== m.regles.zone && m.vac[z]); }
 
   function cloner(m) {
     return Object.assign({}, m, { own: m.own.slice(), verrous: new Set(m.verrous),
@@ -172,7 +192,7 @@
   // ---------- Analyses ----------
 
   function regleDuJour(m, i) {
-    return m.vacC.has(i) ? m.regles.vacances : m.regles.scolaire;
+    return vacances(m).has(i) ? m.regles.vacances : m.regles.scolaire;
   }
 
   /**
@@ -203,7 +223,7 @@
         out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: true, reporte: !!rF.reporte });
       } else {
         const rF = regleDuJour(m, d);
-        const attendu = `${m.vacC.has(d) ? "vacances" : "période scolaire"} : ${JOURS[rF.jour]} ${rF.heure}`;
+        const attendu = `${vacances(m).has(d) ? "vacances" : "période scolaire"} : ${JOURS[rF.jour]} ${rF.heure}`;
         out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: false, attendu });
       }
     }
@@ -247,7 +267,8 @@
     }
     for (const bl of out) {
       let e = 0;
-      for (let i = bl.a; i <= bl.b; i++) if (m.ete.has(i)) e++;
+      const et = ete(m);
+      for (let i = bl.a; i <= bl.b; i++) if (et.has(i)) e++;
       bl.ete = e * 2 > bl.len;
     }
     return out;
@@ -381,7 +402,8 @@
       if (o.utiliserVerrous) for (const d of t.jours) if (m.verrous.has(d)) fix[i] = m.own[d];
       if (o.garderLibres && refLibres) for (let d = t.a; d <= t.b; d++) if (refLibres.has(d)) fix[i] = "M";
     });
-    const ete = at.map((t) => t.jours.length > 0 && t.jours.every((d) => m.ete.has(d)));
+    const et = ete(m);
+    const estEte = at.map((t) => t.jours.length > 0 && t.jours.every((d) => et.has(d)));
     const aEviter = (d) => m.eviterNuits.has(d); // soir à éviter
     // bonus week-end : dimanche dans [debut de l'atome, fin exclue)
     function bonus(i, prev, cur) {
@@ -414,8 +436,8 @@
           if (fix[i] && fix[i] !== cur) continue;
           const dd = cur === "P" ? n : -n;
           let c = st.c - bonus(i, po, cur), run, e;
-          if (cur === po) { run = Math.min(pr + n, 40); e = pe || ete[i]; }
-          else { if (po !== "-") c += coutBloc(pr, pe, o); run = n; e = ete[i]; }
+          if (cur === po) { run = Math.min(pr + n, 40); e = pe || estEte[i]; }
+          else { if (po !== "-") c += coutBloc(pr, pe, o); run = n; e = estEte[i]; }
           const key = `${cur}|${run}|${e ? 1 : 0}|${pd + dd}`;
           const ex = suiv.get(key);
           if (!ex || c < ex.c) suiv.set(key, { c, prev: k, o: cur });
@@ -443,6 +465,14 @@
   // Calendrier scolaire officiel (données publiques) par année civile.
   const VACANCES = {
     2027: {
+      zone_a: [
+        { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
+        { nom: "Hiver", du: "2027-02-13", au: "2027-02-28" },
+        { nom: "Printemps", du: "2027-04-10", au: "2027-04-25" },
+        { nom: "Été", du: "2027-07-03", au: "2027-09-01" },
+        { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" },
+        { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
+      ],
       zone_c: [
         { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
         { nom: "Hiver", du: "2027-02-06", au: "2027-02-21" },
@@ -491,7 +521,7 @@
         parents: { papa: "Papa", maman: "Maman" } },
       regles: ecrireRegles(lireRegles({})),
       garde_segments: [{ du: `${annee}-01-01`, au: `${annee}-12-31`, parent: "papa" }],
-      vacances: JSON.parse(JSON.stringify(VACANCES[annee] || { zone_c: [], zone_b: [] })),
+      vacances: JSON.parse(JSON.stringify(VACANCES[annee] || {})),
       feries: feriesFrance(annee),
     };
   }
@@ -545,7 +575,7 @@
   }
 
   const api = {
-    planningVide, feriesFrance, eviterBasculer, eviterNormaliser,
+    planningVide, feriesFrance, ZONES, ZONE_DEFAUT, vacances, ete, zonesIndicatives, eviterBasculer, eviterNormaliser,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,

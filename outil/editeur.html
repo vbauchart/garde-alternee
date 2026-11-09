@@ -8,14 +8,14 @@
   :root {
     --bg: #f6f6f4; --panel: #ffffff; --ink: #1f2328; --muted: #6b7078; --line: #d9dbe0;
     --papa: #9dc3e6; --maman: #f4b183; --a-eviter: #f8d3b6; --libre: #a9d18e; --libre-ink: #2f5a1c;
-    --vacC: #ffe699; --vacB: #b48fd0; --ferie: #f19c99; --accent: #2f6fb0;
+    --vacRef: #ffe699; --vacInd1: #b48fd0; --vacInd2: #5fb3a1; --ferie: #f19c99; --accent: #2f6fb0;
     --err: #c0392b; --warn: #b7791f; --info: #4a6fa5; --we: #eef0f3;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #16181c; --panel: #1f2228; --ink: #e6e8eb; --muted: #9aa0a8; --line: #343840;
       --papa: #3f6f9c; --maman: #a8673c; --a-eviter: #6e4b33; --libre: #4f7f35; --libre-ink: #d8f0c8;
-      --vacC: #7a6620; --vacB: #7a5a96; --ferie: #9c4643; --accent: #79a9e0; --we: #262a31;
+      --vacRef: #7a6620; --vacInd1: #7a5a96; --vacInd2: #2f7a6a; --ferie: #9c4643; --accent: #79a9e0; --we: #262a31;
       --err: #ff7b6b; --warn: #e2b04a; --info: #8fb1e3;
     }
   }
@@ -65,8 +65,9 @@
   .mois td.vac { width: 22px; }
   td.p { background: var(--papa); } td.m { background: var(--maman); } td.v { background: var(--a-eviter); }
   td.libre { background: var(--libre); color: var(--libre-ink); font-weight: 600; }
-  td.vacC { background: var(--vacC); } td.ferie { background: var(--ferie); }
-  td.vacB { box-shadow: inset 4px 0 0 var(--vacB); }
+  td.vacRef { background: var(--vacRef); } td.ferie { background: var(--ferie); }
+  td.vac0 { box-shadow: inset 4px 0 0 var(--vacInd1); } td.vac1 { box-shadow: inset -4px 0 0 var(--vacInd2); }
+  td.vac0.vac1 { box-shadow: inset 4px 0 0 var(--vacInd1), inset -4px 0 0 var(--vacInd2); }
   td.horsregle { outline: 2px solid var(--err); outline-offset: -2px; }
   .modifie::before { content: "•"; color: var(--accent); margin-right: 2px; }
   .verrou::after { content: " 🔒"; font-size: 9px; }
@@ -90,6 +91,7 @@
   .legende { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
   .legende i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
   .cache { display: none !important; }
+  .legende-zones { display: contents; }
   .eviter-etat { font-size: 12px; color: var(--muted); }
   .eviter-etat b { color: var(--ink); }
 </style>
@@ -151,8 +153,7 @@
           <span><i style="background:var(--maman)"></i>Maman</span>
           <span><i style="background:var(--a-eviter)"></i>Jour à éviter</span>
           <span><i style="background:var(--libre)"></i>Journée et soir libres</span>
-          <span><i style="background:var(--vacC)"></i>Vacances zone C</span>
-          <span><i style="background:var(--vacB)"></i>Zone B (indicatif)</span>
+          <span class="legende-zones"></span>
           <span><i style="background:var(--ferie)"></i>Férié</span>
         </div>
         <div id="calendrier" class="calendrier"></div>
@@ -180,7 +181,7 @@
             <span class="aide" id="eviterNomExport"></span></p>
           <div class="legende">
             <span><i style="background:var(--a-eviter)"></i>Jour à éviter</span>
-            <span><i style="background:var(--vacC)"></i>Vacances zone C</span>
+            <span class="legende-zones"></span>
             <span><i style="background:var(--ferie)"></i>Férié</span>
           </div>
           <div id="calendrierEviter" class="calendrier"></div>
@@ -194,7 +195,13 @@
       <div id="onglet-regles" class="cache">
         <div class="grille-regles">
           <fieldset id="regleScolaire"><legend>Échange en période scolaire</legend></fieldset>
-          <fieldset id="regleVacances"><legend>Échange pendant les vacances (zone C)</legend></fieldset>
+          <fieldset id="regleVacances"><legend>Échange pendant les vacances (zone <span class="zone-ref"></span>)</legend></fieldset>
+          <fieldset>
+            <legend>Zone de vacances scolaires</legend>
+            <label class="champ">Zone de référence <select id="zone"></select></label>
+            <p class="aide">Ses vacances déclenchent la règle d'échange des vacances et l'été (blocs plus longs).
+              Les deux autres zones sont affichées à titre indicatif dans le calendrier.</p>
+          </fieldset>
           <fieldset>
             <legend>Variante</legend>
             <label class="champ">Suffixe du fichier JSON (et des PDF) <input type="text" id="suffixe" placeholder="ex. _lundi"></label>
@@ -406,6 +413,7 @@ function rendre() {
   if (!sc) { $("#resume").innerHTML = "<h2>Résumé</h2><p class='aide'>Aucun scénario.</p>"; $("#alertes ul").innerHTML = ""; return; }
   const m = sc.model, ech = G.echanges(m), lib = G.libres(m, ech);
   rendreResume(sc, lib);
+  rendreLegendeZones(m);
   rendreAlertes(sc);
   for (const o of ["calendrier", "plages", "eviter", "regles", "export"]) $(`#onglet-${o}`).classList.toggle("cache", etat.onglet !== o);
   document.querySelectorAll(".onglets button").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === etat.onglet));
@@ -446,12 +454,30 @@ function rendreAlertes(sc) {
     : `<li class="info">Aucune alerte.</li>`;
 }
 
+/** Colonne vacances : férié ou zone de référence en fond, zones indicatives en liserés. */
+function celluleVacances(m, i) {
+  const ref = G.vacances(m).has(i), ind = G.zonesIndicatives(m);
+  let vac = m.feries.has(i) ? "ferie" : (ref ? "vacRef" : "");
+  const titres = [];
+  if (m.feries.has(i)) titres.push(m.feries.get(i));
+  if (ref) titres.push(`Vacances zone ${m.regles.zone}`);
+  ind.forEach((z, k) => { if (m.vac[z].has(i)) { vac += ` vac${k}`; titres.push(`Zone ${z} (indicatif)`); } });
+  return { vac, titreVac: titres.join(" · ") };
+}
+function rendreLegendeZones(m) {
+  const ind = G.zonesIndicatives(m);
+  const html = `<span><i style="background:var(--vacRef)"></i>Vacances zone ${m.regles.zone}</span>` +
+    ind.map((z, k) => `<span><i style="background:var(--vacInd${k + 1})"></i>Zone ${z} (indicatif)</span>`).join("");
+  document.querySelectorAll(".legende-zones").forEach((el) => { el.innerHTML = html; });
+  document.querySelectorAll(".zone-ref").forEach((el) => { el.textContent = m.regles.zone; });
+}
+
 function rendreCalendrier(sc, ech, lib) {
   const m = sc.model, cal = m.cal;
   let html = "";
   for (let mo = 0; mo < 12; mo++) {
     html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col><col style="width:22px"></colgroup>
-      <tr><th></th><th>Papa</th><th>Maman</th><th>À éviter</th><th>C</th></tr>`;
+      <tr><th></th><th>Papa</th><th>Maman</th><th>À éviter</th><th title="Vacances zone ${m.regles.zone}">${m.regles.zone}</th></tr>`;
     for (let i = 0; i < cal.n; i++) {
       if (cal.mois[i] !== mo) continue;
       const o = m.own[i], e = ech.get(i), we = cal.jour[i] >= 5;
@@ -465,9 +491,7 @@ function rendreCalendrier(sc, ech, lib) {
       let aEviter = "", vt = "";
       if (lib.has(i)) { aEviter = "libre"; vt = "LIBRE"; }
       else if (m.eviterJours.has(i)) { aEviter = "v"; vt = m.eviterLabels.get(i) || ""; }
-      let vac = m.feries.has(i) ? "ferie" : (m.vacC.has(i) ? "vacC" : "");
-      if (m.vacB.has(i)) vac += " vacB";
-      const titreVac = m.feries.get(i) || "";
+      const { vac, titreVac } = celluleVacances(m, i);
       const jcls = (o !== sc.refOwn[i] ? "modifie" : "") + (m.verrous.has(i) ? " verrou" : "");
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${jcls}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
         <td class="${p}">${pt}</td><td class="${ma}">${mt}</td><td class="${aEviter}">${esc(vt)}</td><td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
@@ -498,16 +522,16 @@ function rendreEviter(sc) {
   let html = "";
   for (let mo = 0; mo < 12; mo++) {
     html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col style="width:22px"></colgroup>
-      <tr><th></th><th>À éviter</th><th>C</th></tr>`;
+      <tr><th></th><th>À éviter</th><th title="Vacances zone ${m.regles.zone}">${m.regles.zone}</th></tr>`;
     for (let i = 0; i < cal.n; i++) {
       if (cal.mois[i] !== mo) continue;
       const we = cal.jour[i] >= 5;
       let aEviter = "", libelle = "";
       if (m.eviterJours.has(i)) { aEviter = "v"; libelle = m.eviterLabels.get(i) || ""; }
-      let vac = m.feries.has(i) ? "ferie" : (m.vacC.has(i) ? "vacC" : "");
+      const { vac, titreVac } = celluleVacances(m, i);
       const ancre = etat.eviterAncre === i ? "ancre" : "";
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${ancre}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
-        <td class="${aEviter}">${esc(libelle)}</td><td class="vac ${vac}" title="${esc(m.feries.get(i) || "")}"></td></tr>`;
+        <td class="${aEviter}">${esc(libelle)}</td><td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
     }
     html += `</table></div>`;
   }
@@ -542,6 +566,7 @@ function rendreRegles(sc) {
   const m = sc.model;
   champRegle("#regleScolaire", m.regles.scolaire);
   champRegle("#regleVacances", m.regles.vacances);
+  $("#zone").innerHTML = G.ZONES.map((z) => `<option value="${z}"${z === m.regles.zone ? " selected" : ""}>Zone ${z}${m.vac[z] ? "" : " (dates inconnues)"}</option>`).join("");
   $("#suffixe").value = m.data.suffixe || "";
   $("#titreVariante").value = m.data.titre_variante || "";
   const fs = $("#optionsSuggestion");
@@ -614,7 +639,8 @@ function lireRegle(id) {
 }
 $("#onglet-regles").addEventListener("change", (ev) => {
   const t = ev.target;
-  if (t.dataset.r) modifier((m) => { m.regles = { scolaire: lireRegle("#regleScolaire"), vacances: lireRegle("#regleVacances") }; });
+  if (t.dataset.r) modifier((m) => { m.regles = Object.assign({}, m.regles, { scolaire: lireRegle("#regleScolaire"), vacances: lireRegle("#regleVacances") }); });
+  if (t.id === "zone") modifier((m) => { m.regles = Object.assign({}, m.regles, { zone: t.value }); });
   if (t.id === "suffixe") modifier((m) => { m.data.suffixe = t.value.trim(); });
   if (t.id === "titreVariante") modifier((m) => { m.data.titre_variante = t.value; });
   if (t.dataset.opt) {
@@ -622,7 +648,7 @@ $("#onglet-regles").addEventListener("change", (ev) => {
     rendre(); sauver();
   }
 });
-$("#btnVerrouEte").addEventListener("click", () => modifier((m) => { for (const i of m.ete) m.verrous.add(i); }));
+$("#btnVerrouEte").addEventListener("click", () => modifier((m) => { for (const i of G.ete(m)) m.verrous.add(i); }));
 $("#btnDeverrouiller").addEventListener("click", () => modifier((m) => m.verrous.clear()));
 $("#btnSuggerer").addEventListener("click", () => {
   const sc = courant(); if (!sc) return;

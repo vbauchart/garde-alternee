@@ -84,8 +84,9 @@ serveur), puis charger un ou plusieurs JSON de `data/` (bouton ou glisser-dépos
   (Maj+clic = jusqu'au dernier jour cliqué) ; seuls les jours à éviter y sont
   affichés. Tableau des périodes pour les heures « dès » / « fin ».
   « Exporter les jours à éviter » télécharge `a_eviter_<année>.json` (à placer dans `data/`).
-- **Règles & suggestion** : jour, heure et attribution des échanges (scolaire
-  et vacances), suffixe du fichier JSON (donc des PDF) ; « Proposer un planning » calcule le meilleur
+- **Règles & suggestion** : zone de vacances de référence (A, B ou C ; les deux
+  autres sont affichées à titre indicatif dans le calendrier), jour, heure et
+  attribution des échanges (scolaire et vacances), suffixe du fichier JSON (donc des PDF) ; « Proposer un planning » calcule le meilleur
   planning selon ces règles (équité, longueur des blocs, week-ends libres sur
   les jours à éviter, jours verrouillés) dans un nouveau scénario.
 - En direct : compteurs Papa/Maman (total, écart, par mois), journées et soirs
@@ -134,4 +135,5 @@ périodes où Papa préfère ne pas avoir la garde, du jour « du » (dès l'heu
   (**Papa 182 / Maman 183**). Variante lundi : 183/182.
 - **`jours_a_eviter`** (`data/a_eviter_2027.json`) : complément des semaines
   transcrites du PDF d'origine (fixe).
-- **`vacances`** : dates zones B et C reprises du PDF d'origine.
+- **`vacances`** : calendrier officiel des zones A, B et C ; la zone de
+  référence est choisie dans `regles.zone` (B par défaut, C pour le planning 2027).

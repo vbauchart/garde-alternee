@@ -25,8 +25,8 @@ DATA = RACINE / "data" / "planning_2027.json"
 BLEU = "#9DC3E6"      # Papa indisponible
 ORANGE = "#F4B183"    # Jour à éviter / Maman indisponible
 VERT = "#A9D18E"      # Journée et soir libres
-VIOLET = "#C9A9DD"    # Vacances zone B (Amiens)
-JAUNE = "#FFE699"     # Vacances zone C (Paris)
+VIOLET = "#C9A9DD"    # Vacances des zones indicatives
+JAUNE = "#FFE699"     # Vacances de la zone de référence
 ROUGE = "#F19C99"     # Jour férié
 GRIS_ENTETE = "#404040"
 GRIS_LEGER = "#F2F2F2"
@@ -81,6 +81,23 @@ def charger(path=None, a_eviter=None) -> dict:
     data["avec_a_eviter"] = "jours_a_eviter" in data
     data.setdefault("jours_a_eviter", [])
     return data
+
+
+ZONES = ("A", "B", "C")
+ZONE_DEFAUT = "B"
+
+
+def zone_reference(data: dict) -> str:
+    """Zone de vacances de référence (regles.zone, B par défaut)."""
+    z = str(data.get("regles", {}).get("zone", ZONE_DEFAUT)).upper()
+    return z if z in ZONES else ZONE_DEFAUT
+
+
+def vacances_zones(data: dict) -> dict:
+    """{zone: ensemble des dates de vacances} pour les zones présentes dans le JSON."""
+    vac = data.get("vacances", {})
+    return {z: ensemble_de_segments(vac[f"zone_{z.lower()}"])
+            for z in ZONES if f"zone_{z.lower()}" in vac}
 
 
 def _d(s: str) -> dt.date:
