@@ -98,7 +98,7 @@
 </head>
 <body>
 <header>
-  <h1>Éditeur de garde 2027</h1>
+  <h1>Éditeur de garde</h1>
   <select id="selScenario" title="Scénario"></select>
   <button id="btnDupliquer" title="Copier le scénario pour tester une option">Dupliquer</button>
   <button id="btnRenommer">Renommer</button>
@@ -107,6 +107,7 @@
   <button id="btnAnnuler" title="Ctrl+Z">↶ Annuler</button>
   <button id="btnRetablir" title="Ctrl+Y">↷ Rétablir</button>
   <button id="btnNouveau" title="Créer un planning vide (toute l'année chez Papa)">Nouveau</button>
+  <select id="anneeNouveau" title="Année du nouveau planning (vacances scolaires connues)"></select>
   <button id="btnImporter">Ouvrir des JSON…</button>
   <span class="eviter-etat" id="eviterEtat"></span>
   <button id="btnEviter" title="Charger les jours à éviter (a_eviter_2027.json) : pris en compte dans les journées et soirs libres et la suggestion">Jours à éviter…</button>
@@ -379,7 +380,8 @@ function exporterEviter() {
   telecharger(`a_eviter_${v.annee}.json`, d);
 }
 function nouveauVide() {
-  const sc = nouveauScenario("Nouveau planning", G.planningVide(2027));
+  const annee = +$("#anneeNouveau").value || G.ANNEES[0];
+  const sc = nouveauScenario(`Nouveau planning ${annee}`, G.planningVide(annee));
   etat.scenarios.push(sc); etat.courant = sc.id; etat.onglet = "plages";
   rendre(); sauver();
 }
@@ -709,6 +711,7 @@ $("#btnEviterVide").addEventListener("click", () => {
     description: "Jours où Papa préfère ne pas avoir la garde (activité, déplacement…), créés avec l'éditeur.", jours_a_eviter: [] });
 });
 $("#btnEviterExporter").addEventListener("click", exporterEviter);
+$("#anneeNouveau").innerHTML = G.ANNEES.map((a) => `<option value="${a}">${a}</option>`).join("");
 $("#btnNouveau").addEventListener("click", nouveauVide);
 $("#btnEviter").addEventListener("click", () => $("#fichierEviter").click());
 $("#fichierEviter").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });

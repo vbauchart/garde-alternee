@@ -490,6 +490,22 @@
         { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
       ],
     },
+    // Calendrier officiel 2027-2028 (« au » = veille de la reprise). Le calendrier
+    // 2028-2029 n'est pas encore publié : Toussaint et Noël 2028 manquent, et la
+    // fin de l'été est arrêtée au 31 août.
+    2028: (() => {
+      const commun = (hiver, printemps) => [
+        { nom: "Noël (fin)", du: "2028-01-01", au: "2028-01-02" },
+        { nom: "Hiver", du: hiver[0], au: hiver[1] },
+        { nom: "Printemps", du: printemps[0], au: printemps[1] },
+        { nom: "Été", du: "2028-07-04", au: "2028-08-31" },
+      ];
+      return {
+        zone_a: commun(["2028-02-19", "2028-03-05"], ["2028-04-22", "2028-05-08"]),
+        zone_b: commun(["2028-02-05", "2028-02-20"], ["2028-04-08", "2028-04-23"]),
+        zone_c: commun(["2028-02-12", "2028-02-27"], ["2028-04-15", "2028-05-01"]),
+      };
+    })(),
   };
 
   /** Jours fériés français (Pâques par l'algorithme de Meeus). */
@@ -575,7 +591,7 @@
   }
 
   const api = {
-    planningVide, feriesFrance, ZONES, ZONE_DEFAUT, vacances, ete, zonesIndicatives, eviterBasculer, eviterNormaliser,
+    planningVide, feriesFrance, ANNEES: Object.keys(VACANCES).map(Number), ZONES, ZONE_DEFAUT, vacances, ete, zonesIndicatives, eviterBasculer, eviterNormaliser,
     JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
     lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
     basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,
