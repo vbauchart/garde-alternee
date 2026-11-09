@@ -103,6 +103,7 @@
   <button id="btnDupliquer" title="Copier le scénario pour tester une option">Dupliquer</button>
   <button id="btnRenommer">Renommer</button>
   <button id="btnSupprimer">Supprimer</button>
+  <button id="btnReinit" title="Effacer tous les scénarios et réglages de ce navigateur et repartir comme au premier lancement">Remettre à zéro</button>
   <span class="espace"></span>
   <button id="btnAnnuler" title="Ctrl+Z">↶ Annuler</button>
   <button id="btnRetablir" title="Ctrl+Y">↷ Rétablir</button>
@@ -712,6 +713,11 @@ $("#btnRenommer").addEventListener("click", () => { const sc = courant(); const 
 $("#btnSupprimer").addEventListener("click", () => {
   const sc = courant(); if (!confirm(`Supprimer le scénario « ${sc.nom} » de ce navigateur ? (les fichiers du dépôt ne sont pas touchés)`)) return;
   etat.scenarios = etat.scenarios.filter((s) => s !== sc); etat.courant = etat.scenarios[0] ? etat.scenarios[0].id : null; rendre(); sauver();
+});
+$("#btnReinit").addEventListener("click", () => {
+  if (!confirm("Remettre à zéro ? Tous les scénarios, les jours à éviter et les options enregistrés dans ce navigateur seront effacés (les fichiers du dépôt ne sont pas touchés).")) return;
+  try { localStorage.removeItem(CLE); } catch (e) { /* stockage indisponible */ }
+  location.reload();
 });
 $("#btnReference").addEventListener("click", () => { const sc = courant(); definirReference(sc); rendre(); sauver(); });
 function telechargerPDF(type) {
