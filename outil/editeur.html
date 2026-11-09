@@ -174,13 +174,11 @@
           <p class="aide"><kbd>Clic</kbd> sur un jour : Tierce a / n'a pas ses enfants ce jour-là ·
             <kbd>Maj</kbd>+clic : applique la même chose du dernier jour cliqué jusqu'à celui-ci ·
             les heures « dès » (début) et « fin » (rendu le matin : la dernière nuit est libre) se règlent dans le tableau.
-            La colonne Papa montre la garde du scénario courant ; les nuits libres à deux se recalculent en direct.</p>
+            Seul le planning de Tierce est affiché ici.</p>
           <p><button id="btnTierceExporter" class="primaire">Exporter le planning de Tierce</button>
             <span class="aide" id="tierceNomExport"></span></p>
           <div class="legende">
-            <span><i style="background:var(--papa)"></i>Papa a ses enfants</span>
             <span><i style="background:var(--tierce)"></i>Tierce a ses enfants</span>
-            <span><i style="background:var(--libre)"></i>Nuit libre à deux</span>
             <span><i style="background:var(--vacC)"></i>Vacances zone C</span>
             <span><i style="background:var(--ferie)"></i>Férié</span>
           </div>
@@ -412,7 +410,7 @@ function rendre() {
   document.querySelectorAll(".onglets button").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === etat.onglet));
   if (etat.onglet === "calendrier") rendreCalendrier(sc, ech, lib);
   if (etat.onglet === "plages") rendrePlages(sc);
-  if (etat.onglet === "tierce") rendreTierce(sc, ech, lib);
+  if (etat.onglet === "tierce") rendreTierce(sc);
   if (etat.onglet === "regles") rendreRegles(sc);
   if (etat.onglet === "export") rendreExport(sc);
 }
@@ -490,7 +488,7 @@ function rendrePlages(sc) {
           <button data-action="suppr" title="Fusionner avec la plage précédente"${k === 0 ? " disabled" : ""}>Supprimer</button></td></tr>`).join("");
 }
 
-function rendreTierce(sc, ech, lib) {
+function rendreTierce(sc) {
   $("#tierceAbsent").classList.toggle("cache", !!etat.tierce);
   $("#tiercePresent").classList.toggle("cache", !etat.tierce);
   if (!etat.tierce) return;
@@ -498,20 +496,17 @@ function rendreTierce(sc, ech, lib) {
   $("#tierceNomExport").textContent = `→ tierce_${etat.tierce.annee}.json, à placer dans data/`;
   let html = "";
   for (let mo = 0; mo < 12; mo++) {
-    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col style="width:22px"></colgroup>
-      <tr><th></th><th>Papa</th><th>Tierce</th><th>C</th></tr>`;
+    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col style="width:22px"></colgroup>
+      <tr><th></th><th>Tierce</th><th>C</th></tr>`;
     for (let i = 0; i < cal.n; i++) {
       if (cal.mois[i] !== mo) continue;
-      const e = ech.get(i), we = cal.jour[i] >= 5;
-      let papa = m.own[i] === "P" ? "p" : "", vt = "";
-      if (e) { papa = "p"; vt = e.rend === "P" ? `fin ${e.heure}` : `dès ${e.heure}`; }
+      const we = cal.jour[i] >= 5;
       let tierce = "", valt = "";
       if (m.tierceBusy.has(i)) { tierce = "v"; valt = m.tierceLabels.get(i) || ""; }
-      if (lib.has(i)) { tierce = "libre"; valt = valt || "LIBRE"; }
       let vac = m.feries.has(i) ? "ferie" : (m.vacC.has(i) ? "vacC" : "");
       const ancre = etat.tierceAncre === i ? "ancre" : "";
       html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${ancre}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
-        <td class="${papa}">${vt}</td><td class="${tierce}">${esc(valt)}</td><td class="vac ${vac}" title="${esc(m.feries.get(i) || "")}"></td></tr>`;
+        <td class="${tierce}">${esc(valt)}</td><td class="vac ${vac}" title="${esc(m.feries.get(i) || "")}"></td></tr>`;
     }
     html += `</table></div>`;
   }
