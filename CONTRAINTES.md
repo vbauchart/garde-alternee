@@ -18,6 +18,7 @@ calendrier pour comparer.
 | Semaines hors vacances | Papa a les semaines paires ou impaires | paires |
 | Petites vacances | les années paires, Papa a la 1ʳᵉ ou la 2ᵉ semaine | 1ʳᵉ |
 | Été | les années paires, Papa a les quinzaines 1 et 3 ou 2 et 4 | 1 et 3 |
+| Fusion des périodes courtes | oui / non (case à cocher) | oui |
 
 Maman a toujours l'inverse de Papa. Les années impaires, le partage des
 vacances est inversé.
@@ -48,6 +49,18 @@ vacances est inversé.
 - **Jour d'échange** : compté pour le parent qui **rend** les enfants ou pour
   celui qui les **reçoit**, selon le réglage de l'échange (hors vacances ou
   vacances).
+- **Fusion des périodes courtes** (option) : une période de **3 jours ou
+  moins** (jours comptés) chez un parent, coincée entre deux périodes de
+  l'autre parent, est **rendue à l'autre parent** : les deux échanges qui
+  l'encadrent sont supprimés et les trois périodes n'en font plus qu'une.
+  - Cela arrive surtout au début ou à la fin des vacances, quand le jour
+    d'échange des vacances diffère du jour d'échange hors vacances.
+  - Exemple (réglages par défaut, 2027) : Papa aurait les enfants du mer.
+    30/06 18h au sam. 3/07 18h (début de l'été, 1ʳᵉ quinzaine à Maman) ;
+    avec la fusion, Maman les garde du mer. 23/06 au sam. 17/07.
+  - Les fusions sont faites de la plus courte à la plus longue. Elles ne
+    compensent pas les jours perdus : l'écart Papa / Maman peut augmenter.
+  - Les jours fusionnés sont hachurés dans le calendrier et listés à gauche.
 - **Jour férié** : un échange qui tombe un jour férié est **reporté au
   lendemain**, à la même heure (ex. sam. 25/12/2027 → dim. 26/12 18h).
 

@@ -50,6 +50,7 @@
   .onglets { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
   .onglets button { border-radius: 6px 6px 0 0; }
   .onglets button.actif { background: var(--accent); color: #fff; border-color: var(--accent); }
+  ul.fusions { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
   .aide { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
   .calendrier { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .calendrier.deux { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
@@ -66,6 +67,8 @@
   td.p { background: var(--papa); } td.m { background: var(--maman); }
   td.compte { font-weight: 700; }
   td.court { background: var(--court); color: #fff; }
+  td.fusion { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(0,0,0,.18) 4px 6px); }
+  .legende i.fusion { background-color: var(--maman); background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(0,0,0,.25) 3px 5px); }
   .bandeau { border: 1px solid var(--mauvais); border-left-width: 5px; background: var(--bandeau); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
   .bandeau b { color: var(--mauvais); }
   .bandeau ul { margin: 4px 0 0; padding-left: 20px; }
@@ -282,6 +285,15 @@ function rendreResume(res) {
       <div class="ligne"><span>Papa : planning 2 − planning 1</span><b>${res[1].total.P - res[0].total.P > 0 ? "+" : ""}${res[1].total.P - res[0].total.P}</b></div></div>`;
   }
   etat.plannings.forEach((p, k) => { html += carteTotaux(p, res[k], `${p.nom} · ${etat.annee}`); });
+  const fusions = res.flatMap((r, k) => r.fusions.map((f) => {
+    const d = (iso) => fmtDate({ iso, js: G.jourSemaine(G.versJour(iso)) });
+    return `<li>${res.length > 1 ? `${esc(etat.plannings[k].nom)} : ` : ""}${f.du === f.au ? `le ${d(f.du)}` : `du ${d(f.du)} au ${d(f.au)}`}
+      (${f.jours} j) : ${G.NOM[f.parent]} → ${G.NOM[f.au_profit]}</li>`;
+  }));
+  if (fusions.length) {
+    html += `<div class="carte"><h2>Périodes fusionnées</h2><p class="aide" style="margin:0">Périodes de ${G.FUSION_MAX} jours
+      ou moins rendues à l'autre parent :</p><ul class="fusions">${fusions.join("")}</ul></div>`;
+  }
   $("#resume").innerHTML = html;
 }
 
@@ -309,11 +321,12 @@ function rendreCalendrier(res) {
     <span><i style="background:var(--vacInd)"></i>Autres zones (indicatif)</span>
     <span><i style="background:var(--ferie)"></i>Férié</span>
     ${res.some((r) => r.courtes.length) ? `<span><i style="background:var(--court)"></i>Période de moins de ${G.COURT_MIN} jours</span>` : ""}
+    ${res.some((r) => r.fusions.length) ? `<span><i class="fusion"></i>Période courte rendue à l'autre parent (fusion)</span>` : ""}
     ${deux ? `<span><b style="color:var(--accent)">•</b> parent différent entre les plannings 1 et 2</span>` : ""}`;
   $("#calendrier").classList.toggle("deux", deux);
 
   const cellules = (d) => {
-    const e = d.echange, court = (x) => (d.court && d.parent === x ? " court" : "");
+    const e = d.echange, court = (x) => (d.court && d.parent === x ? " court" : d.fusionne && d.parent === x ? " fusion" : "");
     if (!e) return [d.parent === "P" ? ["p" + court("P"), ""] : ["", ""], d.parent === "M" ? ["m" + court("M"), ""] : ["", ""]];
     const txt = { [e.rend]: `fin ${e.heure}`, [e.recoit]: `dès ${e.heure}` };
     return [["p" + (d.parent === "P" ? " compte" : "") + court("P"), txt.P], ["m" + (d.parent === "M" ? " compte" : "") + court("M"), txt.M]];
@@ -396,6 +409,13 @@ function rendrePlanning(k, r) {
         <p class="aide">C'est l'inverse les années impaires. L'année est celle du début des vacances (Noël 2026-2027 : année paire).
           Toussaint, Noël, hiver et printemps : 2 semaines ; été : jusqu'à 4 quinzaines.</p>
       </fieldset>
+      <fieldset><legend>Périodes courtes</legend>
+        <label class="champ"><span>Fusionner les périodes de ${G.FUSION_MAX} jours ou moins</span>
+          <input type="checkbox" data-champ="fusionCourtes"${p.fusionCourtes ? " checked" : ""}></label>
+        <p class="aide">Une période de ${G.FUSION_MAX} jours ou moins chez un parent, coincée entre deux périodes de l'autre
+          (souvent au début ou à la fin des vacances), est rendue à l'autre parent : ses deux échanges sont supprimés.
+          Jours hachurés dans le calendrier.</p>
+      </fieldset>
     </div>
     ${k === 1 ? `<div class="actions"><button id="btnCopier1">Recopier le planning 1</button><button id="btnSupprimer2">Supprimer le planning 2</button></div>` : ""}
     <h3 class="section">Résumé des règles</h3>
@@ -418,7 +438,8 @@ $("#onglet-planning").addEventListener("change", (ev) => {
   const t = ev.target, champ = t.dataset.champ; if (!champ) return;
   const k = +etat.onglet, p = JSON.parse(JSON.stringify(etat.plannings[k]));
   const [a, b] = champ.split(".");
-  if (b) p[a][b] = t.value; else p[a] = t.value;
+  const v = t.type === "checkbox" ? t.checked : t.value;
+  if (b) p[a][b] = v; else p[a] = v;
   etat.plannings[k] = G.normaliser(p);
   rendre(); sauver();
 });
