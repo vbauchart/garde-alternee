@@ -18,7 +18,7 @@ calendrier pour comparer.
 | Semaines hors vacances | Papa a les semaines paires ou impaires | paires |
 | Petites vacances | les années paires, Papa a la 1ʳᵉ ou la 2ᵉ semaine | 1ʳᵉ |
 | Été | les années paires, Papa a les quinzaines 1 et 3 ou 2 et 4 | 1 et 3 |
-| Fusion des périodes courtes | oui / non (case à cocher) | oui |
+| Fusion des périodes courtes | nombre de jours, de 0 (jamais) à 6 | 3 |
 
 Maman a toujours l'inverse de Papa. Les années impaires, le partage des
 vacances est inversé.
@@ -49,10 +49,13 @@ vacances est inversé.
 - **Jour d'échange** : compté pour le parent qui **rend** les enfants ou pour
   celui qui les **reçoit**, selon le réglage de l'échange (hors vacances ou
   vacances).
-- **Fusion des périodes courtes** (option) : une période de **3 jours ou
-  moins** (jours comptés) chez un parent, coincée entre deux périodes de
-  l'autre parent, est **rendue à l'autre parent** : les deux échanges qui
-  l'encadrent sont supprimés et les trois périodes n'en font plus qu'une.
+- **Fusion des périodes courtes** : une période de **N jours ou moins**
+  (jours comptés ; N réglable, 3 par défaut) chez un parent, coincée entre
+  deux périodes de l'autre parent, est **rendue à l'autre parent** : les deux
+  échanges qui l'encadrent sont supprimés et les trois périodes n'en font
+  plus qu'une. N = 0 : jamais de fusion ; N = 1 : seul un jour isolé est
+  fusionné. Les anciennes configurations (case à cocher) sont reprises :
+  cochée = 3, décochée = 0.
   - Cela arrive surtout au début ou à la fin des vacances, quand le jour
     d'échange des vacances diffère du jour d'échange hors vacances.
   - Exemple (réglages par défaut, 2027) : Papa aurait les enfants du mer.
@@ -72,14 +75,19 @@ vacances est inversé.
   (API de data.education.gouv.fr). Le dernier téléchargement est gardé dans
   le navigateur ; sans réseau ni cache, le calendrier intégré à
   `outil/core.js` (`VACANCES`, de Noël 2026-2027 à l'été 2028) sert de
-  secours. La source et la date du téléchargement sont affichées à côté du
-  choix de l'année (détail au survol).
+  secours. La source et la date des téléchargements (vacances et fériés)
+  sont affichées à côté du choix de l'année (détail au survol).
   - Les années proposées sont celles que le calendrier couvre, à partir de
     l'année en cours.
   - Dates des élèves (pas celles des enseignants) ; les ponts (Ascension) ne
     sont pas des vacances au sens des règles et sont ignorés.
   - Quand seul le début de l'été est publié, l'été est arrêté au 31 août, et
     les vacances suivantes manquent (l'éditeur l'indique).
-- **Jours fériés** : calculés (`feriesFrance`, Pâques par l'algorithme de
-  Meeus).
+- **Jours fériés** (métropole) : téléchargés à l'ouverture de l'éditeur
+  depuis le jeu de données
+  [« Jours fériés en France »](https://www.data.gouv.fr/datasets/jours-feries-en-france)
+  (API `calendrier.api.gouv.fr`), gardés en cache comme les vacances. Au-delà
+  des années publiées (2031 aujourd'hui), ou sans réseau ni cache, ils sont
+  calculés (`feriesCalcules`, Pâques par l'algorithme de Meeus). Ils sont
+  marqués en rouge dans les colonnes A, B, C du calendrier.
 - Les deux zones non choisies sont affichées **à titre indicatif**.

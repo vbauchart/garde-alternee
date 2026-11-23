@@ -15,9 +15,10 @@ GitHub Pages).
   affichée à côté du planning 1 dans le calendrier (jours différents marqués
   « • », totaux comparés).
 - **Calendrier** : l'année choisie, jour par jour, avec les échanges, les
-  vacances des trois zones et les jours fériés. Les vacances sont
-  téléchargées depuis data.gouv.fr à l'ouverture (calendrier intégré en
-  secours hors ligne) ; les années proposées sont celles qu'elles couvrent.
+  vacances des trois zones et les jours fériés (en rouge dans les colonnes
+  A, B, C). Vacances et fériés sont téléchargés depuis data.gouv.fr à
+  l'ouverture (calendrier intégré et fériés calculés en secours hors ligne) ;
+  les années proposées sont celles que couvrent les vacances.
 - **Télécharger le PDF** : 2 pages A4 paysage (calendrier, règles, totaux,
   signatures).
 - **Exporter l'agenda (ICS)…** : choisir le planning (1 ou 2), le parent et
