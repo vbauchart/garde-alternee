@@ -1,3 +1,2 @@
-# Exports personnels (configurations, PDF) : dépôt privé séparé cloné dans data/
-data/
+# Exports personnels (PDF) : à ne pas versionner
 *.pdf

@@ -44,8 +44,3 @@ CONTRAINTES.md          Règles du planning
 ```bash
 node -e 'const G = require("./outil/core.js"); console.log(G.calculer({}, 2027).total)'
 ```
-
-## Données personnelles
-
-Les exports (JSON, PDF) peuvent être rangés dans `data/` (ignoré par Git),
-par exemple un clone du dépôt privé `garde-alternee-data`.
