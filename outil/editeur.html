@@ -82,6 +82,10 @@
   .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
   h3.section { margin: 18px 0 4px; font-size: 15px; }
   .cache { display: none !important; }
+  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 16px; width: min(420px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(0, 0, 0, .4); }
+  dialog h2 { font-size: 16px; margin: 0 0 8px; }
+  dialog .actions { justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -92,6 +96,7 @@
   <button id="btnImporter" title="Ouvrir une configuration exportée (garde_AAAA.json)">Ouvrir…</button>
   <input type="file" id="fichier" accept=".json,application/json" class="cache">
   <button id="btnExporter" title="Télécharger la configuration des plannings (JSON)">Exporter le JSON</button>
+  <button id="btnIcs" title="Exporter les périodes de garde d'un parent vers un agenda (Android, Google Agenda…)">Exporter l'agenda (ICS)…</button>
   <button id="btnPdf" class="primaire">Télécharger le PDF</button>
   <button id="btnReinit" title="Effacer les réglages enregistrés dans ce navigateur et repartir des règles par défaut">Remettre à zéro</button>
 </header>
@@ -114,6 +119,19 @@
     <div id="onglet-planning" class="cache"></div>
   </section>
 </main>
+
+<dialog id="dlgIcs">
+  <form method="dialog">
+    <h2>Exporter l'agenda (ICS)</h2>
+    <p class="aide">Un événement « Enfants chez … » par période de garde, d'un échange au suivant (heure de Paris).
+      À ouvrir sur le téléphone, ou à importer dans Google Agenda (Paramètres › Importer et exporter).</p>
+    <label class="champ">Planning <select id="icsPlanning"></select></label>
+    <label class="champ">Parent <select id="icsParent"><option value="P">Papa</option><option value="M">Maman</option></select></label>
+    <label class="champ">Année <select id="icsAnnee"></select></label>
+    <p class="aide" id="icsInfo"></p>
+    <div class="actions"><button value="annuler">Annuler</button><button value="ok" class="primaire">Télécharger le .ics</button></div>
+  </form>
+</dialog>
 
 <script src="core.js"></script>
 <script src="impression.js"></script>
@@ -345,6 +363,30 @@ $("#btnExporter").addEventListener("click", () => telecharger(`garde_${etat.anne
 $("#btnPdf").addEventListener("click", () => {
   const doc = Impression.documentPDF(etat.plannings, etat.annee);
   Impression.versJsPDF(window.jspdf.jsPDF, doc).save(doc.fichier);
+});
+function infoIcs() {
+  const k = +$("#icsPlanning").value, parent = $("#icsParent").value, annee = +$("#icsAnnee").value;
+  const n = G.periodes(etat.plannings[k], annee, parent).length;
+  $("#icsInfo").textContent = `${n} période${n > 1 ? "s" : ""} chez ${G.NOM[parent]} en ${annee}.` +
+    (G.calculer(etat.plannings[k], annee).incomplet ? " Vacances connues jusqu'au " +
+      G.CALENDRIER_CONNU_JUSQUA.split("-").reverse().join("/") + " seulement." : "");
+}
+$("#btnIcs").addEventListener("click", () => {
+  const k = $("#icsPlanning").value;
+  $("#icsPlanning").innerHTML = etat.plannings.map((p, i) => opt(i, `${i + 1}. ${esc(p.nom)}`, k || 0)).join("");
+  $("#icsAnnee").innerHTML = G.ANNEES.map((a) => opt(a, a, etat.annee)).join("");
+  infoIcs();
+  $("#dlgIcs").showModal();
+});
+["#icsPlanning", "#icsParent", "#icsAnnee"].forEach((s) => $(s).addEventListener("change", infoIcs));
+$("#dlgIcs").addEventListener("close", () => {
+  if ($("#dlgIcs").returnValue !== "ok") return;
+  const p = etat.plannings[+$("#icsPlanning").value], parent = $("#icsParent").value, annee = +$("#icsAnnee").value;
+  const blob = new Blob([G.icalendar(p, annee, parent)], { type: "text/calendar;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `garde_${G.NOM[parent].toLowerCase()}_${annee}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });
 $("#btnReinit").addEventListener("click", () => {
   if (!confirm("Remettre à zéro ? Les règles enregistrées dans ce navigateur seront effacées.")) return;
