@@ -19,7 +19,7 @@
   const NOM = { P: "Papa", M: "Maman" };
   const JOUR_MS = 86400000;
   const COURT_MIN = 3; // une période chez un parent de moins de 3 jours est signalée
-  const FUSION_MAX = 3; // option : une période de 3 jours ou moins est rendue à l'autre parent
+  const FUSION_LIMITE = 6; // valeur maximale du réglage fusionMax (jours)
 
   const PLANNING_DEFAUT = {
     nom: "Planning 1",
@@ -29,7 +29,7 @@
     semainesPapa: "paires",       // semaines ISO (de l'échange qui ouvre la semaine) de Papa
     petitesVacancesPapa: 1,       // semaine de Papa aux petites vacances, années paires
     etePapa: "1-3",               // quinzaines de Papa l'été, années paires ("1-3" ou "2-4")
-    fusionCourtes: true,          // rendre les périodes de FUSION_MAX jours ou moins à l'autre parent
+    fusionMax: 3,                 // période de fusionMax jours ou moins rendue à l'autre parent (0 : jamais)
   };
 
   // ---------- Dates : un jour = nombre de jours depuis le 1970-01-01 (UTC) ----------
@@ -204,6 +204,16 @@
   // ---------- Configuration ----------
 
   /** Complète et nettoie une configuration de planning (import, stockage). */
+  /** Seuil de fusion (0 à FUSION_LIMITE). Anciennes configurations : case fusionCourtes (cochée = 3, décochée = 0). */
+  function fusionMax(p) {
+    if (p.fusionMax !== undefined && p.fusionMax !== "") {
+      const n = Math.round(+p.fusionMax);
+      if (Number.isFinite(n)) return Math.min(FUSION_LIMITE, Math.max(0, n));
+    }
+    if (p.fusionCourtes === false || p.fusionCourtes === "false") return 0;
+    return PLANNING_DEFAUT.fusionMax;
+  }
+
   function normaliser(p) {
     p = p || {};
     const d = PLANNING_DEFAUT;
@@ -224,7 +234,7 @@
       semainesPapa: p.semainesPapa === "impaires" ? "impaires" : "paires",
       petitesVacancesPapa: +p.petitesVacancesPapa === 2 ? 2 : 1,
       etePapa: p.etePapa === "2-4" ? "2-4" : "1-3",
-      fusionCourtes: p.fusionCourtes === undefined ? d.fusionCourtes : p.fusionCourtes === true || p.fusionCourtes === "true",
+      fusionMax: fusionMax(p),
     };
   }
 
@@ -240,7 +250,7 @@
         `${p.petitesVacancesPapa === 1 ? "1re" : "2e"} semaine les années paires, la ${autre(p.petitesVacancesPapa) === 1 ? "1re" : "2e"} ` +
         `les années impaires ; été : Papa a les quinzaines ${q[0]} les années paires, ${q[1]} les années impaires ` +
         "(année du début des vacances).",
-      ...(p.fusionCourtes ? [`Une période de ${FUSION_MAX} jours ou moins chez un parent, entre deux périodes de l'autre, ` +
+      ...(p.fusionMax ? [`Une période de ${p.fusionMax} jour${p.fusionMax > 1 ? "s" : ""} ou moins chez un parent, entre deux périodes de l'autre, ` +
         "est rendue à l'autre parent (les deux échanges qui l'encadrent sont supprimés)."] : []),
       p.hors.compte === p.vacances.compte
         ? `Le jour d'échange compte ${compte(p.hors)}. Un échange un jour férié est reporté au lendemain.`
@@ -356,13 +366,13 @@
       return out;
     }
 
-    // Option fusion : la plus courte période de FUSION_MAX jours ou moins est
+    // Option fusion : la plus courte période de p.fusionMax jours ou moins est
     // rendue à l'autre parent (suppression des deux transitions qui l'encadrent),
     // puis on recommence.
     const fusionnes = new Set(), fusions = [];
     let { parJour, echJour } = compter();
-    while (p.fusionCourtes) {
-      const c = suites(parJour).filter((x) => x.n <= FUSION_MAX).sort((x, y) => x.n - y.n || x.du - y.du)[0];
+    while (p.fusionMax > 0) {
+      const c = suites(parJour).filter((x) => x.n <= p.fusionMax).sort((x, y) => x.n - y.n || x.du - y.du)[0];
       if (!c) break;
       // période (entre deux transitions) de ce parent qui recouvre le plus ces jours
       let meilleur = -1, recouvre = 0;
@@ -488,7 +498,7 @@
   }
 
   const api = {
-    JOURS, MOIS, ZONES, NOM, PLANNING_DEFAUT, COURT_MIN, FUSION_MAX,
+    JOURS, MOIS, ZONES, NOM, PLANNING_DEFAUT, COURT_MIN, FUSION_LIMITE,
     versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance, feriesCalcules, urlFeries, chargerFeries,
     normaliser, texteRegles, calculer, joursVacances, periodes, icalendar,
     urlCalendrierOfficiel, lireCalendrierOfficiel, chargerVacances,
