@@ -9,12 +9,14 @@
     --bg: #f6f6f4; --panel: #ffffff; --ink: #1f2328; --muted: #6b7078; --line: #d9dbe0;
     --papa: #9dc3e6; --maman: #f4b183; --vacRef: #ffe699; --vacInd: #d9c8e8; --ferie: #f19c99;
     --accent: #2f6fb0; --warn: #b7791f; --we: #eef0f3; --bon: #2f5a1c; --mauvais: #c0392b;
+    --court: #e74c3c; --bandeau: #fdecea;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #16181c; --panel: #1f2228; --ink: #e6e8eb; --muted: #9aa0a8; --line: #343840;
       --papa: #3f6f9c; --maman: #a8673c; --vacRef: #7a6620; --vacInd: #5a4a6e; --ferie: #9c4643;
       --accent: #79a9e0; --warn: #e2b04a; --we: #262a31; --bon: #a9d18e; --mauvais: #ff7b6b;
+      --court: #b03a2e; --bandeau: #3a1f1d;
     }
   }
   * { box-sizing: border-box; }
@@ -62,6 +64,10 @@
   .mois td.debut { border-left: 2px solid var(--line); }
   td.p { background: var(--papa); } td.m { background: var(--maman); }
   td.compte { font-weight: 700; }
+  td.court { background: var(--court); color: #fff; }
+  .bandeau { border: 1px solid var(--mauvais); border-left-width: 5px; background: var(--bandeau); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+  .bandeau b { color: var(--mauvais); }
+  .bandeau ul { margin: 4px 0 0; padding-left: 20px; }
   td.vacRef { background: var(--vacRef); } td.vacInd { background: var(--vacInd); }
   .mois th.z, .mois td.z { padding: 0; font-size: 9px; }
   .mois th.z.ref { color: var(--ink); font-weight: 800; }
@@ -100,6 +106,7 @@
   <aside id="resume"></aside>
 
   <section>
+    <div id="bandeau" class="bandeau cache"></div>
     <div class="onglets">
       <button data-onglet="calendrier" class="actif">Calendrier</button>
       <button data-onglet="0">Planning 1</button>
@@ -178,6 +185,7 @@ function rendre() {
   $("#onglet-planning").classList.toggle("cache", etat.onglet === "calendrier");
   $("#btnPdf").disabled = !(window.jspdf && window.Impression);
   rendreResume(res);
+  rendreBandeau(res);
   if (etat.onglet === "calendrier") rendreCalendrier(res);
   else rendrePlanning(+etat.onglet, res[+etat.onglet]);
 }
@@ -211,6 +219,19 @@ function rendreResume(res) {
   $("#resume").innerHTML = html;
 }
 
+function rendreBandeau(res) {
+  const el = $("#bandeau");
+  const lignes = res.flatMap((r, k) => r.courtes.map((c) => {
+    const d = (iso) => fmtDate({ iso, js: G.jourSemaine(G.versJour(iso)) });
+    const periode = c.du === c.au ? `le ${d(c.du)}` : `du ${d(c.du)} au ${d(c.au)}`;
+    return `<li>${res.length > 1 ? `${esc(etat.plannings[k].nom)} : ` : ""}${G.NOM[c.parent]} ${periode}
+      (${c.jours} jour${c.jours > 1 ? "s" : ""})</li>`;
+  }));
+  el.classList.toggle("cache", !lignes.length);
+  el.innerHTML = lignes.length ? `<b>Attention : ${lignes.length} période${lignes.length > 1 ? "s" : ""} de moins de
+    ${G.COURT_MIN} jours chez un parent en ${etat.annee}</b> (cases en rouge dans le calendrier).<ul>${lignes.join("")}</ul>` : "";
+}
+
 function rendreCalendrier(res) {
   const deux = res.length > 1;
   const refs = new Set(etat.plannings.map((p) => p.zone));
@@ -221,14 +242,15 @@ function rendreCalendrier(res) {
     <span><i style="background:var(--vacRef)"></i>Vacances zone ${[...refs].join(" / ")}</span>
     <span><i style="background:var(--vacInd)"></i>Autres zones (indicatif)</span>
     <span><i style="background:var(--ferie)"></i>Férié</span>
+    ${res.some((r) => r.courtes.length) ? `<span><i style="background:var(--court)"></i>Période de moins de ${G.COURT_MIN} jours</span>` : ""}
     ${deux ? `<span><b style="color:var(--accent)">•</b> parent différent entre les plannings 1 et 2</span>` : ""}`;
   $("#calendrier").classList.toggle("deux", deux);
 
   const cellules = (d) => {
-    const e = d.echange;
-    if (!e) return [d.parent === "P" ? ["p", ""] : ["", ""], d.parent === "M" ? ["m", ""] : ["", ""]];
+    const e = d.echange, court = (x) => (d.court && d.parent === x ? " court" : "");
+    if (!e) return [d.parent === "P" ? ["p" + court("P"), ""] : ["", ""], d.parent === "M" ? ["m" + court("M"), ""] : ["", ""]];
     const txt = { [e.rend]: `fin ${e.heure}`, [e.recoit]: `dès ${e.heure}` };
-    return [["p" + (d.parent === "P" ? " compte" : ""), txt.P], ["m" + (d.parent === "M" ? " compte" : ""), txt.M]];
+    return [["p" + (d.parent === "P" ? " compte" : "") + court("P"), txt.P], ["m" + (d.parent === "M" ? " compte" : "") + court("M"), txt.M]];
   };
   let html = "";
   for (let mo = 0; mo < 12; mo++) {
