@@ -1,134 +1,62 @@
-# Contraintes du planning de garde 2027
+# Règles du planning de garde
 
-Ce document fixe les règles de construction du planning. Elles sont la
-référence : toute modification des données (`data/planning_2027.json`) doit les
-respecter.
+Le planning n'est plus construit à la main ni optimisé : il est **entièrement
+calculé** à partir de règles strictes. Pour changer le planning, on change les
+règles. Le calcul est dans `outil/core.js` (`calculer`).
 
-## Acteurs
+Deux plannings peuvent être réglés (onglets « Planning 1 » et « Planning 2 ») :
+le planning 2 est une variante, affichée à côté du planning 1 dans le
+calendrier pour comparer.
 
-- **Papa** et **Maman** : les deux parents, qui négocient le planning 2027.
-- **Jours à éviter** : jours où Papa préfère ne pas avoir la garde (activité,
-  déplacement…). Ils sont **fixes** et facultatifs.
+## Réglages d'un planning
 
-## Objectif
-
-1. **Définir un planning de garde équitable** des enfants entre Papa et Maman
-   pour 2027 (compte des jours le plus équilibré possible).
-2. **Placer les périodes « sans enfants » de Papa sur les jours à éviter** afin
-   de **maximiser les week-ends libres** (en vert dans le PDF des jours à éviter).
-
-## Règles d'échange
-
-| Période | Jour d'échange | Heure |
+| Réglage | Valeurs | Par défaut |
 |---|---|---|
-| Scolaire | **Mercredi** | 18h00 |
-| Vacances | **Samedi** | 18h00 |
+| Zone de vacances | A, B ou C | C |
+| Échange hors vacances | jour, heure, jour compté pour celui qui rend / reçoit | mercredi 18h, rend |
+| Échange en vacances | jour, heure, jour compté pour celui qui rend / reçoit | samedi 18h, rend |
+| Semaines hors vacances | Papa a les semaines paires ou impaires | paires |
+| Petites vacances | les années paires, Papa a la 1ʳᵉ ou la 2ᵉ semaine | 1ʳᵉ |
+| Été | les années paires, Papa a les quinzaines 1 et 3 ou 2 et 4 | 1 et 3 |
 
-- **Attribution d'un jour d'échange** : le jour est compté pour le parent qui
-  **rend** les enfants, c'est-à-dire celui qui les a gardés **jusqu'à 18h**.
-  Exemple : un mercredi où Papa rend les enfants à 18h est compté « Papa ».
+Maman a toujours l'inverse de Papa. Les années impaires, le partage des
+vacances est inversé.
+
+## Définitions
+
+- **Semaine (hors vacances)** : du jour d'échange hors vacances (à l'heure
+  d'échange) au jour d'échange suivant. Elle est **paire** si l'échange qui
+  l'ouvre tombe une semaine ISO 8601 de numéro pair.
+  - Exemple (mercredi 18h, Papa = paires) : du mer. 13/01/2027 18h (S2) au
+    mer. 20/01 18h → Papa ; du mer. 20/01 (S3) au mer. 27/01 → Maman.
+  - Les années à 53 semaines ISO (2026) donnent deux semaines impaires
+    d'affilée (S53 puis S1) : le même parent a deux semaines de suite. La
+    règle s'applique telle quelle (en pratique, cela tombe pendant Noël).
+- **Vacances** : celles de la zone choisie (calendrier officiel). Elles
+  commencent au **premier jour d'échange vacances compris dans les vacances
+  officielles** et se déroulent en blocs d'un échange vacances au suivant :
+  - **petites vacances** (Toussaint, Noël, hiver, printemps) : 2 semaines ;
+  - **été** : jusqu'à 4 quinzaines (autant qu'il en tient).
+  - Un bloc se termine au plus tard le jour de la reprise des cours.
+  - Avant le premier bloc et après le dernier, le **rythme hors vacances**
+    s'applique (parité de la semaine en cours).
+  - Exemple (hiver 2027, zone C, du sam. 6/02 au dim. 21/02) : rythme hors
+    vacances jusqu'au sam. 6/02 18h, 1ʳᵉ semaine jusqu'au sam. 13/02 18h,
+    2ᵉ semaine jusqu'au sam. 20/02 18h, puis rythme hors vacances.
+- **Année paire / impaire** : année du **début** des vacances (Noël
+  2026-2027 → 2026 → année paire).
+- **Jour d'échange** : compté pour le parent qui **rend** les enfants ou pour
+  celui qui les **reçoit**, selon le réglage de l'échange (hors vacances ou
+  vacances).
 - **Jour férié** : un échange qui tombe un jour férié est **reporté au
-  lendemain** (ex. sam. 25/12 Noël → échange le dim. 26/12 18h).
-- Pendant les vacances scolaires, on bascule sur un rythme **samedi → samedi
-  18h** (quinzaines l'été).
-- Les **jours à éviter sont fixes** : c'est le planning de garde qui s'adapte
-  pour que Papa n'ait pas les enfants ces jours-là.
+  lendemain**, à la même heure (ex. sam. 25/12/2027 → dim. 26/12 18h).
 
-## Jours à éviter (fixes)
+## Données
 
-- Périodes en semaine scolaire en général du **lundi au dimanche** (journées
-  pleines, sans heure de début ni de fin).
-- Chaque période couvre des **journées pleines** (journée et soir) du jour
-  « du » au jour « au » inclus.
-- Données : `jours_a_eviter` dans le fichier séparé `data/a_eviter_2027.json`.
-
-## Journées, soirs et week-ends libres
-
-- Les cases **LIBRE** (colonne « À éviter », en vert) sont les jours où Papa
-  **n'a pas les enfants le soir** et qui sont **à éviter**. Elles sont
-  **calculées** et ne sont **jamais stockées** dans le JSON.
-- Un jour compte jusqu'au lendemain matin : Papa n'a pas les enfants le soir si
-  la nuit revient à Maman **après** l'échange du jour (ex. mercredi où Papa
-  rend à 18h → soir chez Maman, donc libre).
-- Un **week-end libre** = vendredi et samedi libres.
-- Total : **139 journées et soirs libres / 21 week-ends** (planning principal,
-  dont Noël 24–25/12), **163 / 20 week-ends** (variante lundi).
-- Planning principal : **20 week-ends** (les 19 de l'original + le 6–7/02
-  gagné grâce à l'échange janvier/février).
-
-## Contrainte d'équité
-
-- À la fin de l'année, le **total des jours** de Papa et de Maman doit rester
-  **équitable**.
-- Baseline transcrite des PDF d'origine : Papa 181 / Maman 184 (écart 3).
-- État négocié actuel : **Papa 182 / Maman 183** (écart 1).
-- Cible : réduire l'écart au minimum sans casser les alignements de week-end.
-- Vérification : `uv run python scripts/count_days.py`.
-
-### Échange négocié janvier / février
-
-Pour rééquilibrer (écart 3 → 1) tout en partageant équitablement les vacances
-d'hiver, deux bornes d'échange ont été décalées (toutes deux un mercredi 18h) :
-
-- **Janvier** : Papa garde jusqu'au **mercredi 6/01** (au lieu du 2/01). Maman
-  reprend le 7/01. → +4 jours pour Papa.
-- **Février** : Papa rend les enfants le **mercredi 3/02** (au lieu du 6/02).
-  Maman enchaîne du 4 au 13/02. → −3 jours pour Papa (+3 pour Maman).
-- Net : +1 jour pour Papa (182 / 183).
-
-## Partage des vacances d'hiver
-
-- **1ʳᵉ semaine (6–13/02)** : **Maman**.
-- **2ᵉ semaine (14–20/02)** : **Papa**.
-
-## Variante « lundi 11h » (proposition alternative)
-
-Fichier séparé : `data/planning_2027_lundi.json` → PDF suffixés `_lundi`.
-
-| Période | Jour d'échange | Heure | Jour compté pour |
-|---|---|---|---|
-| Scolaire | **Lundi** | 11h00 | le parent qui **reçoit** (il a les enfants l'après-midi) |
-| Vacances (zone C) | **Samedi** | 18h00 | le parent qui **rend** |
-
-- Semaines scolaires : alternance lundi 11h → lundi 11h.
-- Vacances : moitiés samedi 18h → samedi 18h sur les dates officielles zone C.
-  Les jours avant le début des vacances (lundi → samedi) restent au parent de
-  la semaine en cours ; la fin des vacances (dernier samedi 18h → reprise)
-  rejoint la semaine scolaire suivante, sauf contrainte de week-end.
-- Mêmes contraintes que le planning principal : jours à éviter fixes, les 19
-  week-ends libres de l'original conservés, équité des jours.
-- Résultat : **Papa 183 / Maman 182** (écart 1), **20 week-ends
-  libres** (les 19 de l'original + le 6–7/11).
-- Points à négocier :
-  - **Hiver** : Papa a la 1ʳᵉ semaine (6–13/02), Maman la 2ᵉ (13–20/02) —
-    inverse de l'échange négocié dans le planning principal.
-  - **Printemps** : Maman n'a qu'un week-end (sam. 17/04 18h → lun. 19/04 11h)
-    entre deux blocs de Papa. C'est imposé par le week-end libre du 3/04 et
-    les règles samedi/lundi ; l'alternative est un bloc de 16 jours pour Papa
-    (10 → 26/04).
-  - **Toussaint** : Papa du lun. 18/10 au sam. 30/10 (13 jours), Maman du
-    30/10 au lun. 8/11.
-
-## Zones de vacances
-
-- La **zone de référence** se choisit dans les règles (`regles.zone` : A, B
-  ou C ; **B par défaut**). Ses vacances définissent les plages de vacances
-  des enfants, déclenchent l'échange du samedi et fixent l'été (blocs plus
-  longs). Le planning 2027 négocié utilise la **zone C**.
-- Les **deux autres zones** sont affichées **à titre purement indicatif**
-  (elles n'interviennent ni dans les règles d'échange ni dans les calculs).
-
-## Jours fériés 2027
-
-Jour de l'an (01/01), Lundi de Pâques (29/03), Fête du Travail (01/05),
-Ascension (06/05), Victoire 1945 (08/05), Lundi de Pentecôte (17/05), Fête
-nationale (14/07), Assomption (15/08), Toussaint (01/11), Armistice (11/11),
-Noël (25/12).
-
-## Fiabilité des données
-
-- `garde_segments` : transcrit des PDF d'origine (181/184), puis négocié
-  (182/183).
-- `jours_a_eviter` (`data/a_eviter_2027.json`) : **exact**, complément des semaines du PDF d'origine.
-- `vacances` : calendrier officiel des zones A, B et C.
-- `feries` : jours fériés 2027.
+- **Vacances scolaires** : calendrier officiel des zones A, B et C, intégré à
+  `outil/core.js` (`VACANCES`), de Noël 2026-2027 à l'été 2028. Le calendrier
+  2028-2029 n'est pas encore publié : la fin de l'été 2028 est arrêtée au
+  31 août, et Toussaint et Noël 2028 manquent (l'éditeur l'indique).
+- **Jours fériés** : calculés (`feriesFrance`, Pâques par l'algorithme de
+  Meeus).
+- Les deux zones non choisies sont affichées **à titre indicatif**.
