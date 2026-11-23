@@ -3,20 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Éditeur de garde 2027</title>
+<title>Planning de garde</title>
 <style>
   :root {
     --bg: #f6f6f4; --panel: #ffffff; --ink: #1f2328; --muted: #6b7078; --line: #d9dbe0;
-    --papa: #9dc3e6; --maman: #f4b183; --a-eviter: #f8d3b6; --libre: #a9d18e; --libre-ink: #2f5a1c;
-    --vacRef: #ffe699; --vacInd1: #b48fd0; --vacInd2: #5fb3a1; --ferie: #f19c99; --accent: #2f6fb0;
-    --err: #c0392b; --warn: #b7791f; --info: #4a6fa5; --we: #eef0f3;
+    --papa: #9dc3e6; --maman: #f4b183; --vacRef: #ffe699; --vacInd: #d9c8e8; --ferie: #f19c99;
+    --accent: #2f6fb0; --warn: #b7791f; --we: #eef0f3; --bon: #2f5a1c; --mauvais: #c0392b;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #16181c; --panel: #1f2228; --ink: #e6e8eb; --muted: #9aa0a8; --line: #343840;
-      --papa: #3f6f9c; --maman: #a8673c; --a-eviter: #6e4b33; --libre: #4f7f35; --libre-ink: #d8f0c8;
-      --vacRef: #7a6620; --vacInd1: #7a5a96; --vacInd2: #2f7a6a; --ferie: #9c4643; --accent: #79a9e0; --we: #262a31;
-      --err: #ff7b6b; --warn: #e2b04a; --info: #8fb1e3;
+      --papa: #3f6f9c; --maman: #a8673c; --vacRef: #7a6620; --vacInd: #5a4a6e; --ferie: #9c4643;
+      --accent: #79a9e0; --warn: #e2b04a; --we: #262a31; --bon: #a9d18e; --mauvais: #ff7b6b;
     }
   }
   * { box-sizing: border-box; }
@@ -28,10 +26,10 @@
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: .45; cursor: default; }
   button.primaire { background: var(--accent); color: #fff; border-color: var(--accent); }
-  select, input[type=text], input[type=number], input[type=date] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  select, input[type=text] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
   .espace { flex: 1; }
   main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px; align-items: start; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { position: static !important; } }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { position: static !important; max-height: none !important; } }
   aside { position: sticky; top: 64px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 80px); overflow: auto; }
   .carte { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
   .carte h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
@@ -44,372 +42,118 @@
   .barre span:first-child { background: var(--papa); } .barre span:last-child { background: var(--maman); }
   table.mois-recap { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
   table.mois-recap td { padding: 1px 4px; text-align: right; } table.mois-recap td:first-child { text-align: left; color: var(--muted); }
-  .bon { color: var(--libre-ink); font-weight: 600; } .mauvais { color: var(--err); font-weight: 600; }
-  #alertes ul { list-style: none; margin: 0; padding: 0; }
-  #alertes li { padding: 5px 6px; border-left: 3px solid; margin-bottom: 4px; border-radius: 3px; background: var(--we); cursor: pointer; font-size: 13px; }
-  #alertes li.erreur { border-color: var(--err); } #alertes li.alerte { border-color: var(--warn); } #alertes li.info { border-color: var(--info); cursor: default; }
-  .onglets { display: flex; gap: 4px; margin-bottom: 12px; }
+  .bon { color: var(--bon); font-weight: 600; } .mauvais { color: var(--mauvais); font-weight: 600; }
+  .avert { border-left: 3px solid var(--warn); padding: 4px 8px; background: var(--we); border-radius: 3px; font-size: 13px; margin: 0 0 6px; }
+  .onglets { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
   .onglets button { border-radius: 6px 6px 0 0; }
   .onglets button.actif { background: var(--accent); color: #fff; border-color: var(--accent); }
   .aide { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
-  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 12px; }
-  .calendrier { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .calendrier { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .calendrier.deux { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
   .mois { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .mois h3 { margin: 0; padding: 5px; text-align: center; background: #404040; color: #fff; font-size: 13px; }
   .mois table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
-  .mois th { font-weight: 600; color: var(--muted); font-size: 10px; padding: 2px; }
+  .mois th { font-weight: 600; color: var(--muted); font-size: 10px; padding: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mois th.groupe { border-left: 2px solid var(--line); }
   .mois td { border-top: 1px solid var(--line); height: 19px; padding: 0 2px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mois tr.jour { cursor: pointer; } .mois tr.jour:hover td { filter: brightness(.93); }
-  .mois td.j { text-align: left; padding-left: 4px; width: 46px; }
+  .mois td.j { text-align: left; padding-left: 4px; }
   .mois tr.we td.j { background: var(--we); font-weight: 700; }
-  .mois td.vac { width: 22px; }
-  td.p { background: var(--papa); } td.m { background: var(--maman); } td.v { background: var(--a-eviter); }
-  td.libre { background: var(--libre); color: var(--libre-ink); font-weight: 600; }
-  td.vacRef { background: var(--vacRef); } td.ferie { background: var(--ferie); }
-  td.vacInd1 { background: var(--vacInd1); } td.vacInd2 { background: var(--vacInd2); }
-  .mois th.zi { font-size: 8px; padding: 0; font-weight: 400; } .mois td.zi { padding: 0; }
-  td.horsregle { outline: 2px solid var(--err); outline-offset: -2px; }
-  .modifie::before { content: "•"; color: var(--accent); margin-right: 2px; }
-  .verrou::after { content: " 🔒"; font-size: 9px; }
-  .ancre::after { content: " ◆"; font-size: 9px; color: var(--accent); }
-  tr.flash td { animation: flash 1.2s ease-out 2; }
-  @keyframes flash { 50% { background: var(--accent); color: #fff; } }
-  .vide { text-align: center; padding: 60px 20px; border: 2px dashed var(--line); border-radius: 12px; color: var(--muted); }
+  .mois td.j.ferie { box-shadow: inset 4px 0 0 var(--ferie); }
+  .mois td.debut { border-left: 2px solid var(--line); }
+  td.p { background: var(--papa); } td.m { background: var(--maman); }
+  td.compte { font-weight: 700; }
+  td.vacRef { background: var(--vacRef); } td.vacInd { background: var(--vacInd); }
+  .mois th.z, .mois td.z { padding: 0; font-size: 9px; }
+  .mois th.z.ref { color: var(--ink); font-weight: 800; }
+  .diff::before { content: "•"; color: var(--accent); font-weight: 900; margin-right: 2px; }
+  .vide { text-align: center; padding: 50px 20px; border: 2px dashed var(--line); border-radius: 12px; color: var(--muted); max-width: 760px; }
   .vide b { color: var(--ink); }
-  table.plages { border-collapse: collapse; width: 100%; max-width: 760px; background: var(--panel); }
-  table.plages th, table.plages td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
-  table.plages td.n { color: var(--muted); text-align: right; }
-  table.plages tr.P td:first-child { box-shadow: inset 5px 0 0 var(--papa); }
-  table.plages tr.M td:first-child { box-shadow: inset 5px 0 0 var(--maman); }
-  .erreurs { color: var(--err); margin: 8px 0; }
-  .grille-regles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; max-width: 900px; }
-  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+  .grille-regles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; max-width: 960px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); margin: 0; min-width: 0; }
   legend { font-weight: 600; padding: 0 4px; }
   label.champ { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; }
-  label.champ input[type=number] { width: 70px; }
-  code.cmd { display: block; background: var(--we); padding: 6px 8px; border-radius: 6px; margin: 4px 0; font-size: 12px; overflow-x: auto; white-space: pre; }
+  label.champ input[type=text] { min-width: 0; }
+  table.blocs { border-collapse: collapse; width: 100%; max-width: 960px; background: var(--panel); margin-top: 8px; font-size: 13px; }
+  table.blocs th, table.blocs td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+  table.blocs td.P { box-shadow: inset 5px 0 0 var(--papa); padding-left: 10px; }
+  table.blocs td.M { box-shadow: inset 5px 0 0 var(--maman); padding-left: 10px; }
   .legende { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
   .legende i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+  .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  h3.section { margin: 18px 0 4px; font-size: 15px; }
   .cache { display: none !important; }
-  .legende-zones { display: contents; }
-  .eviter-etat { font-size: 12px; color: var(--muted); }
-  .eviter-etat b { color: var(--ink); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Éditeur de garde</h1>
-  <select id="selScenario" title="Scénario"></select>
-  <button id="btnDupliquer" title="Copier le scénario pour tester une option">Dupliquer</button>
-  <button id="btnRenommer">Renommer</button>
-  <button id="btnSupprimer">Supprimer</button>
-  <button id="btnReinit" title="Effacer tous les scénarios et réglages de ce navigateur et repartir comme au premier lancement">Remettre à zéro</button>
+  <h1>Planning de garde</h1>
+  <label>Année <select id="annee" title="Année affichée (vacances scolaires connues)"></select></label>
   <span class="espace"></span>
-  <button id="btnAnnuler" title="Ctrl+Z">↶ Annuler</button>
-  <button id="btnRetablir" title="Ctrl+Y">↷ Rétablir</button>
-  <button id="btnNouveau" title="Créer un planning vide (toute l'année chez Papa)">Nouveau</button>
-  <select id="anneeNouveau" title="Année du nouveau planning (vacances scolaires connues)"></select>
-  <button id="btnImporter">Ouvrir des JSON…</button>
-  <span class="eviter-etat" id="eviterEtat"></span>
-  <button id="btnEviter" title="Charger les jours à éviter (a_eviter_2027.json) : pris en compte dans les journées et soirs libres et la suggestion">Jours à éviter…</button>
-  <button id="btnRetirerEviter" title="Ne plus tenir compte des jours à éviter">Retirer les jours à éviter</button>
-  <input type="file" id="fichierEviter" accept=".json,application/json" class="cache">
-  <button id="btnExporter" class="primaire">Exporter le JSON</button>
-  <input type="file" id="fichier" accept=".json,application/json" multiple class="cache">
+  <button id="btnImporter" title="Ouvrir une configuration exportée (garde_AAAA.json)">Ouvrir…</button>
+  <input type="file" id="fichier" accept=".json,application/json" class="cache">
+  <button id="btnExporter" title="Télécharger la configuration des plannings (JSON)">Exporter le JSON</button>
+  <button id="btnPdf" class="primaire">Télécharger le PDF</button>
+  <button id="btnReinit" title="Effacer les réglages enregistrés dans ce navigateur et repartir des règles par défaut">Remettre à zéro</button>
 </header>
 
 <main>
-  <aside>
-    <div class="carte" id="resume"></div>
-    <div class="carte" id="alertes"><h2>Alertes</h2><ul></ul></div>
-  </aside>
+  <aside id="resume"></aside>
 
   <section>
-    <div id="vide" class="vide">
-      <p><b>Ouvre un ou plusieurs fichiers de planning</b><br>
-      (ex. <code>data/planning_2027.json</code> et <code>data/planning_2027_lundi.json</code>)<br>
-      avec le bouton « Ouvrir des JSON… » ou en les glissant dans cette fenêtre.</p>
-      <p><button id="btnVide" class="primaire">Commencer un planning vide</button></p>
-      <p>Les jours à éviter (où Papa préfère ne pas avoir la garde : activité, déplacement… ;
-      <code>data/a_eviter_2027.json</code>) se chargent à part, avec « Jours à éviter… » :
-      ils sont alors pris en compte dans les journées et soirs libres et dans la suggestion.</p>
-      <p>Chaque fichier devient un scénario. Les scénarios sont gardés dans ce navigateur ;
-      « Exporter le JSON » produit le fichier à remettre dans <code>data/</code>.</p>
+    <div class="onglets">
+      <button data-onglet="calendrier" class="actif">Calendrier</button>
+      <button data-onglet="0">Planning 1</button>
+      <button data-onglet="1">Planning 2</button>
     </div>
 
-    <div id="espace" class="cache">
-      <div class="onglets">
-        <button data-onglet="calendrier" class="actif">Calendrier</button>
-        <button data-onglet="plages">Plages</button>
-        <button data-onglet="eviter">Jours à éviter</button>
-        <button data-onglet="regles">Règles &amp; suggestion</button>
-        <button data-onglet="export">Export &amp; PDF</button>
-      </div>
-
-      <div id="onglet-calendrier">
-        <p class="aide"><kbd>Clic</kbd> sur un jour : il passe à l'autre parent jusqu'au prochain échange (déplace l'échange) ·
-          <kbd>Maj</kbd>+clic : ce jour seulement · <kbd>Ctrl</kbd>+clic : verrouiller/déverrouiller le jour (🔒, respecté par la suggestion) ·
-          <span class="modifie"></span> = différent de la référence.</p>
-        <div class="legende">
-          <span><i style="background:var(--papa)"></i>Papa</span>
-          <span><i style="background:var(--maman)"></i>Maman</span>
-          <span><i style="background:var(--a-eviter)"></i>Jour à éviter</span>
-          <span><i style="background:var(--libre)"></i>Journée et soir libres</span>
-          <span class="legende-zones"></span>
-          <span><i style="background:var(--ferie)"></i>Férié</span>
-        </div>
-        <div id="calendrier" class="calendrier"></div>
-      </div>
-
-      <div id="onglet-plages" class="cache">
-        <p class="aide">Chaque ligne est une période chez un parent (le jour d'échange est compté selon les règles).
-          Modifier la fin d'une plage décale le début de la suivante (et inversement) : l'année reste toujours couverte.</p>
-        <div id="erreursPlages" class="erreurs"></div>
-        <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Chez</th><th>Jours</th><th></th></tr></thead><tbody id="plages"></tbody></table>
-      </div>
-
-      <div id="onglet-eviter" class="cache">
-        <div id="eviterAbsent" class="vide">
-          <p><b>Aucun jour à éviter chargé.</b><br>
-          Charge <code>data/a_eviter_2027.json</code> avec « Jours à éviter… », ou crée-les ici.</p>
-          <p><button id="btnEviterVide" class="primaire">Créer une liste vide de jours à éviter</button></p>
-        </div>
-        <div id="eviterPresent">
-          <p class="aide"><kbd>Clic</kbd> sur un jour : à éviter / pas à éviter ·
-            <kbd>Maj</kbd>+clic : applique la même chose du dernier jour cliqué jusqu'à celui-ci ·
-            un jour à éviter l'est toute la journée et le soir.
-            Seuls les jours à éviter sont affichés ici.</p>
-          <p><button id="btnEviterExporter" class="primaire">Exporter les jours à éviter</button>
-            <span class="aide" id="eviterNomExport"></span></p>
-          <div class="legende">
-            <span><i style="background:var(--a-eviter)"></i>Jour à éviter</span>
-            <span class="legende-zones"></span>
-            <span><i style="background:var(--ferie)"></i>Férié</span>
-          </div>
-          <div id="calendrierEviter" class="calendrier"></div>
-          <h3>Périodes à éviter</h3>
-          <table class="plages"><thead><tr><th>Du</th><th>Au</th><th>Jours</th><th></th></tr></thead>
-            <tbody id="periodesEviter"></tbody></table>
-        </div>
-      </div>
-
-      <div id="onglet-regles" class="cache">
-        <div class="grille-regles">
-          <fieldset id="regleScolaire"><legend>Échange en période scolaire</legend></fieldset>
-          <fieldset id="regleVacances"><legend>Échange pendant les vacances (zone <span class="zone-ref"></span>)</legend></fieldset>
-          <fieldset>
-            <legend>Zone de vacances scolaires</legend>
-            <label class="champ">Zone de référence <select id="zone"></select></label>
-            <p class="aide">Ses vacances déclenchent la règle d'échange des vacances et l'été (blocs plus longs).
-              Les deux autres zones sont affichées à titre indicatif, en petites colonnes, dans le calendrier.</p>
-          </fieldset>
-          <fieldset>
-            <legend>Variante</legend>
-            <label class="champ">Suffixe du fichier JSON (et des PDF) <input type="text" id="suffixe" placeholder="ex. _lundi"></label>
-            <label class="champ">Titre de variante <input type="text" id="titreVariante" placeholder="ex. (variante lundi 11h)"></label>
-          </fieldset>
-        </div>
-        <p class="aide" style="margin-top:12px">Changer une règle met à jour les libellés et les alertes, sans modifier les jours.
-          Pour reconstruire un planning conforme aux nouvelles règles, utilise la suggestion ci-dessous.</p>
-        <div class="grille-regles">
-          <fieldset id="optionsSuggestion"><legend>Suggestion automatique</legend></fieldset>
-          <fieldset>
-            <legend>Verrous</legend>
-            <p class="aide">Les jours verrouillés gardent leur parent actuel dans la suggestion (<kbd>Ctrl</kbd>+clic dans le calendrier).</p>
-            <p><span id="nbVerrous"></span></p>
-            <button id="btnVerrouEte">Verrouiller l'été actuel</button>
-            <button id="btnDeverrouiller">Tout déverrouiller</button>
-          </fieldset>
-        </div>
-        <p><button id="btnSuggerer" class="primaire">Proposer un planning</button>
-          <span class="aide" id="resultatSuggestion"></span></p>
-      </div>
-
-      <div id="onglet-export" class="cache">
-        <div class="carte" style="max-width:760px">
-          <h2>Télécharger les PDF</h2>
-          <p>Mêmes documents que les scripts Python (2 pages A4 paysage), générés ici à partir du scénario courant.</p>
-          <p><button id="btnPdfPapaMaman" class="primaire">PDF Papa / Maman</button>
-             <button id="btnPdfAEviter" class="primaire">PDF jours à éviter</button>
-             <span class="aide" id="pdfInfo"></span></p>
-        </div>
-        <div class="carte" style="max-width:760px; margin-top:12px">
-          <h2>Ou exporter et générer les PDF avec Python</h2>
-          <p>1. « Exporter le JSON » télécharge <b id="nomExport"></b>.<br>
-             2. Place-le dans le dossier <code>data/</code> du dépôt.<br>
-             3. Génère les PDF :</p>
-          <code class="cmd" id="commandes"></code>
-          <p><button id="btnCopier">Copier les commandes</button></p>
-          <p class="aide">Référence de comparaison (points « • » et week-ends perdus) :
-            l'état du scénario à son ouverture. <button id="btnReference">Prendre l'état actuel comme référence</button></p>
-        </div>
-      </div>
+    <div id="onglet-calendrier">
+      <div class="legende" id="legende"></div>
+      <div id="calendrier" class="calendrier"></div>
     </div>
+
+    <div id="onglet-planning" class="cache"></div>
   </section>
 </main>
 
 <script src="core.js"></script>
 <script src="impression.js"></script>
-<script src="a_eviter_defaut.js"></script>
 <script src="jspdf.umd.min.js"></script>
 <script>
 "use strict";
 const G = window.Garde;
-const CLE = "garde-alternee.scenarios.v1";
+const CLE = "garde-alternee.config.v2";
+const FORMAT = "garde-alternee/2";
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const LMMJVSD = "LMMJVSD";
 
-// aEviter : jours à éviter chargés à part ({nom, annee, jours_a_eviter}), commun à tous les scénarios
-const etat = { scenarios: [], courant: null, onglet: "calendrier", options: Object.assign({}, G.OPTIONS_DEFAUT), aEviter: null,
-  eviterUndo: [], eviterRedo: [], eviterAncre: null };
+// plannings[0] : planning 1 ; plannings[1] : planning 2 (facultatif, variante comparée)
+const etat = { annee: G.ANNEES[0], plannings: [G.normaliser(G.PLANNING_DEFAUT)], onglet: "calendrier" };
 
-// ---------------- Scénarios ----------------
-
-function nouveauScenario(nom, data, ref) {
-  const model = G.charger(data, etat.aEviter);
-  const sc = { id: Math.random().toString(36).slice(2), nom, model, undo: [], redo: [] };
-  definirReference(sc, ref);
-  return sc;
-}
-function definirReference(sc, ref) {
-  if (ref) { sc.refOwn = ref.own.slice(); sc.refLibres = new Set(ref.libres); return; }
-  sc.refOwn = sc.model.own.slice();
-  sc.refLibres = G.libres(sc.model);
-}
-/** Journées libres de la référence, recalculées avec les jours à éviter actuels. */
-function recalculerRefLibres(sc) {
-  const ref = G.cloner(sc.model); ref.own = sc.refOwn.slice();
-  sc.refLibres = G.libres(ref);
-}
-/** Jours à éviter changés : on reconstruit tous les scénarios avec (ou sans) eux. */
-function definirEviter(aEviter, depuisHistorique) {
-  if (!depuisHistorique) { etat.eviterUndo.push(JSON.stringify(etat.aEviter)); etat.eviterRedo = []; }
-  etat.aEviter = aEviter;
-  for (const sc of etat.scenarios) {
-    sc.model = G.charger(G.exporter(sc.model), etat.aEviter);
-    recalculerRefLibres(sc);
-  }
-  rendre(); sauver();
-}
-const courant = () => etat.scenarios.find((s) => s.id === etat.courant);
-
-function slug(s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""); }
+// ---------------- Stockage ----------------
 
 function sauver() {
-  try {
-    localStorage.setItem(CLE, JSON.stringify({
-      courant: etat.courant, options: etat.options, aEviter: etat.aEviter,
-      scenarios: etat.scenarios.map((s) => ({ id: s.id, nom: s.nom, data: G.exporter(s.model),
-        refOwn: s.refOwn, refLibres: [...s.refLibres] })),
-    }));
-  } catch (e) { /* stockage indisponible : on continue sans */ }
+  try { localStorage.setItem(CLE, JSON.stringify({ annee: etat.annee, plannings: etat.plannings, onglet: etat.onglet })); }
+  catch (e) { /* stockage indisponible : on continue sans */ }
+}
+function charger(o) {
+  if (!o || !Array.isArray(o.plannings) || !o.plannings.length) throw new Error("ce n'est pas une configuration de planning");
+  etat.plannings = o.plannings.slice(0, 2).map((p, k) => G.normaliser(Object.assign({ nom: `Planning ${k + 1}` }, p)));
+  if (G.ANNEES.includes(+o.annee)) etat.annee = +o.annee;
 }
 function restaurer() {
   try {
+    localStorage.removeItem("garde-alternee.scenarios.v1"); // ancien éditeur (scénarios, jours à éviter)
     const raw = localStorage.getItem(CLE);
     if (!raw) return;
     const o = JSON.parse(raw);
-    Object.assign(etat.options, o.options || {});
-    etat.aEviter = o.aEviter || null;
-    for (const s of o.scenarios || []) {
-      // ancien stockage : jours à éviter inclus dans chaque scénario -> liste séparée
-      if (s.data.jours_a_eviter) {
-        if (!etat.aEviter) etat.aEviter = { nom: "repris des scénarios", annee: s.data.annee, jours_a_eviter: s.data.jours_a_eviter };
-        delete s.data.jours_a_eviter;
-      }
-    }
-    for (const s of o.scenarios || []) {
-      const sc = nouveauScenario(s.nom, s.data, { own: s.refOwn, libres: s.refLibres });
-      sc.id = s.id;
-      etat.scenarios.push(sc);
-    }
-    etat.courant = o.courant;
-    if (!courant() && etat.scenarios.length) etat.courant = etat.scenarios[0].id;
-  } catch (e) { etat.scenarios = []; }
+    charger(o);
+    if (o.onglet === "calendrier" || (o.onglet === "0") || (o.onglet === "1" && etat.plannings[1])) etat.onglet = o.onglet;
+  } catch (e) { /* stockage illisible : règles par défaut */ }
 }
-
-// ---------------- Modifications (avec annulation) ----------------
-
-function instantane(m) { return { own: m.own.slice(), verrous: [...m.verrous], regles: JSON.stringify(m.regles), data: JSON.stringify(m.data) }; }
-function restaurerInstantane(m, s) { m.own = s.own.slice(); m.verrous = new Set(s.verrous); m.regles = JSON.parse(s.regles); m.data = JSON.parse(s.data); }
-
-function modifier(fn) {
-  const sc = courant(); if (!sc) return;
-  sc.undo.push(instantane(sc.model)); if (sc.undo.length > 200) sc.undo.shift();
-  sc.redo = [];
-  fn(sc.model);
-  rendre(); sauver();
-}
-// Dans l'onglet « Jours à éviter », annuler / rétablir portent sur eux (communs aux scénarios).
-const surEviter = () => etat.onglet === "eviter";
-function historiqueEviter(de, vers) {
-  if (!de.length) return;
-  vers.push(JSON.stringify(etat.aEviter));
-  definirEviter(JSON.parse(de.pop()), true);
-}
-function modifierEviter(periodes) {
-  definirEviter(Object.assign({}, etat.aEviter, { jours_a_eviter: periodes }));
-}
-function annuler() { if (surEviter()) return historiqueEviter(etat.eviterUndo, etat.eviterRedo); const sc = courant(); if (!sc || !sc.undo.length) return; sc.redo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.undo.pop()); rendre(); sauver(); }
-function retablir() { if (surEviter()) return historiqueEviter(etat.eviterRedo, etat.eviterUndo); const sc = courant(); if (!sc || !sc.redo.length) return; sc.undo.push(instantane(sc.model)); restaurerInstantane(sc.model, sc.redo.pop()); rendre(); sauver(); }
 
 // ---------------- Import / export ----------------
 
-/** Accepte des plannings de garde et/ou des jours à éviter (reconnus à leur contenu). */
-async function importer(fichiers) {
-  let dernier = null;
-  for (const f of fichiers) {
-    try {
-      const data = JSON.parse(await f.text());
-      if (!data.garde_segments && Array.isArray(data.jours_a_eviter)) { chargerEviter(f.name, data); continue; }
-      if (!data.garde_segments || !data.annee) throw new Error("ce n'est ni un planning de garde ni une liste de jours à éviter");
-      if (data.jours_a_eviter) {
-        // planning contenant ses jours à éviter : on les extrait
-        if (!etat.aEviter) chargerEviter(`${f.name} (jours à éviter extraits)`, { annee: data.annee, jours_a_eviter: data.jours_a_eviter });
-        delete data.jours_a_eviter;
-      }
-      const nom = data.variante ? `Variante ${data.variante}` : (data.suffixe ? f.name.replace(/\.json$/, "") : "Planning principal");
-      const sc = nouveauScenario(nom, data);
-      etat.scenarios.push(sc); dernier = sc;
-    } catch (e) { alert(`${f.name} : ${e.message}`); }
-  }
-  if (dernier) etat.courant = dernier.id;
-  rendre(); sauver();
-}
-function chargerEviter(nom, data) {
-  const sc = courant();
-  if (sc && data.annee && data.annee !== sc.model.data.annee)
-    alert(`${nom} : jours à éviter ${data.annee}, mais le planning courant est ${sc.model.data.annee}.`);
-  definirEviter({ nom, annee: data.annee, description: data.description, jours_a_eviter: data.jours_a_eviter });
-}
-function exporterEviter() {
-  if (!etat.aEviter) return;
-  const v = etat.aEviter, d = { annee: v.annee };
-  if (v.description) d.description = v.description;
-  d.jours_a_eviter = v.jours_a_eviter;
-  telecharger(`a_eviter_${v.annee}.json`, d);
-}
-/**
- * Nouveau planning de l'année choisie. Vide (toute l'année chez Papa), ou,
- * avec `suggestion`, directement la suggestion calculée avec les options par défaut.
- */
-function nouveauVide(suggestion) {
-  const annee = +$("#anneeNouveau").value || G.ANNEES[0];
-  let data = G.planningVide(annee), nom = `Nouveau planning ${annee}`;
-  if (suggestion === true) {
-    const m = G.charger(data, etat.aEviter);
-    const res = G.suggerer(m, G.OPTIONS_DEFAUT, G.libres(m));
-    if (res) { data = G.exporter(res); nom = `Suggestion ${annee}`; }
-  }
-  const sc = nouveauScenario(nom, data);
-  etat.scenarios.push(sc); etat.courant = sc.id; etat.onglet = suggestion === true ? "calendrier" : "plages";
-  rendre(); sauver();
-}
-function nomFichier(m) { return `planning_${m.data.annee}${m.data.suffixe || ""}.json`; }
-function exporter() {
-  const sc = courant(); if (!sc) return;
-  telecharger(nomFichier(sc.model), G.exporter(sc.model));
-}
 function telecharger(nom, objet) {
   const blob = new Blob([JSON.stringify(objet, null, 2) + "\n"], { type: "application/json" });
   const a = document.createElement("a");
@@ -417,373 +161,201 @@ function telecharger(nom, objet) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+async function importer(f) {
+  try { charger(JSON.parse(await f.text())); etat.onglet = "calendrier"; rendre(); sauver(); }
+  catch (e) { alert(`${f.name} : ${e.message}`); }
+}
 
 // ---------------- Rendu ----------------
 
+const fmtDate = (d) => `${G.JOURS[d.js].slice(0, 3)}. ${d.iso.slice(8)}/${d.iso.slice(5, 7)}${d.iso.slice(0, 4) !== String(etat.annee) ? "/" + d.iso.slice(0, 4) : ""}`;
+
 function rendre() {
-  const sc = courant();
-  const sel = $("#selScenario");
-  sel.innerHTML = etat.scenarios.map((s) => `<option value="${s.id}"${s.id === etat.courant ? " selected" : ""}>${esc(s.nom)}</option>`).join("");
-  for (const b of ["#btnDupliquer", "#btnRenommer", "#btnSupprimer", "#btnExporter"]) $(b).disabled = !sc;
-  $("#btnAnnuler").disabled = surEviter() ? !etat.eviterUndo.length : !sc || !sc.undo.length;
-  $("#btnRetablir").disabled = surEviter() ? !etat.eviterRedo.length : !sc || !sc.redo.length;
-  sel.disabled = !etat.scenarios.length;
-  $("#eviterEtat").innerHTML = etat.aEviter ? `À éviter : <b>${esc(etat.aEviter.nom)}</b>` : "À éviter : non chargé";
-  $("#btnRetirerEviter").classList.toggle("cache", !etat.aEviter);
-  $("#vide").classList.toggle("cache", !!sc);
-  $("#espace").classList.toggle("cache", !sc);
-  if (!sc) { $("#resume").innerHTML = "<h2>Résumé</h2><p class='aide'>Aucun scénario.</p>"; $("#alertes ul").innerHTML = ""; return; }
-  const m = sc.model, ech = G.echanges(m), lib = G.libres(m, ech);
-  rendreResume(sc, lib);
-  rendreLegendeZones(m);
-  rendreAlertes(sc);
-  for (const o of ["calendrier", "plages", "eviter", "regles", "export"]) $(`#onglet-${o}`).classList.toggle("cache", etat.onglet !== o);
+  const res = etat.plannings.map((p) => G.calculer(p, etat.annee));
+  $("#annee").innerHTML = G.ANNEES.map((a) => `<option value="${a}"${a === etat.annee ? " selected" : ""}>${a}</option>`).join("");
   document.querySelectorAll(".onglets button").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === etat.onglet));
-  if (etat.onglet === "calendrier") rendreCalendrier(sc, ech, lib);
-  if (etat.onglet === "plages") rendrePlages(sc);
-  if (etat.onglet === "eviter") rendreEviter(sc);
-  if (etat.onglet === "regles") rendreRegles(sc);
-  if (etat.onglet === "export") rendreExport(sc);
+  $("#onglet-calendrier").classList.toggle("cache", etat.onglet !== "calendrier");
+  $("#onglet-planning").classList.toggle("cache", etat.onglet === "calendrier");
+  $("#btnPdf").disabled = !(window.jspdf && window.Impression);
+  rendreResume(res);
+  if (etat.onglet === "calendrier") rendreCalendrier(res);
+  else rendrePlanning(+etat.onglet, res[+etat.onglet]);
 }
 
-function rendreResume(sc, lib) {
-  const m = sc.model, c = G.compter(m);
-  const nWe = G.weekendsLibres(m, lib).length;
-  const nRef = G.weekendsLibres(m, sc.refLibres).length;
-  const refC = { P: sc.refOwn.filter((o) => o === "P").length };
-  const delta = c.P - refC.P;
-  $("#resume").innerHTML = `
-    <h2>${esc(sc.nom)}</h2>
-    <div class="totaux">
-      <div class="total p">Papa<b>${c.P}</b></div>
-      <div class="total m">Maman<b>${c.M}</b></div>
-    </div>
-    <div class="barre"><span style="width:${100 * c.P / (c.P + c.M)}%"></span><span style="flex:1"></span></div>
-    <div class="ligne"><span>Écart</span><span class="${c.ecart <= 1 ? "bon" : "mauvais"}">${c.ecart} jour${c.ecart > 1 ? "s" : ""}</span></div>
-    <div class="ligne"><span>vs référence (Papa)</span><span>${delta > 0 ? "+" : ""}${delta}</span></div>
-    ${m.avecEviter ? `
-    <div class="ligne"><span>Week-ends libres (ven.+sam.)</span><span class="${nWe >= nRef ? "bon" : "mauvais"}">${nWe} <small>(réf. ${nRef})</small></span></div>
-    <div class="ligne"><span>Journées et soirs libres</span><span class="${lib.size >= sc.refLibres.size ? "bon" : "mauvais"}">${lib.size} <small>(réf. ${sc.refLibres.size})</small></span></div>`
-    : `<p class="aide">Jours à éviter non chargés : journées et soirs libres non calculés (« Jours à éviter… »).</p>`}
+function carteTotaux(p, r, titre) {
+  const t = r.total;
+  return `<div class="carte">
+    <h2>${esc(titre)}</h2>
+    <div class="totaux"><div class="total p">Papa<b>${t.P}</b></div><div class="total m">Maman<b>${t.M}</b></div></div>
+    <div class="barre"><span style="width:${100 * t.P / (t.P + t.M)}%"></span><span style="flex:1"></span></div>
+    <div class="ligne"><span>Écart</span><span class="${t.ecart <= 1 ? "bon" : "mauvais"}">${t.ecart} jour${t.ecart > 1 ? "s" : ""}</span></div>
     <table class="mois-recap"><tr><td></td><td><b>Papa</b></td><td><b>Maman</b></td></tr>
-      ${c.mois.map((x, i) => `<tr><td>${G.MOIS[i]}</td><td>${x.P}</td><td>${x.M}</td></tr>`).join("")}</table>`;
+      ${t.mois.map((x, i) => `<tr><td>${G.MOIS[i]}</td><td>${x.P}</td><td>${x.M}</td></tr>`).join("")}</table>
+  </div>`;
 }
 
-function rendreAlertes(sc) {
-  const al = G.alertes(sc.model, etat.options, sc.refLibres);
-  const ul = $("#alertes ul");
-  ul.innerHTML = al.length ? al.map((a) => `<li class="${a.niveau}" data-jour="${a.jour ?? ""}">${esc(a.msg)}</li>`).join("")
-    : `<li class="info">Aucune alerte.</li>`;
+function rendreResume(res) {
+  let html = "";
+  if (res.some((r) => r.incomplet)) {
+    html += `<div class="carte"><p class="avert">Calendrier scolaire officiel connu jusqu'au
+      ${G.CALENDRIER_CONNU_JUSQUA.split("-").reverse().join("/")} : les vacances suivantes
+      (Toussaint, Noël ${etat.annee}…) ne sont pas encore prises en compte.</p></div>`;
+  }
+  if (res[1]) {
+    const n = res[0].jours.filter((d, k) => d.parent !== res[1].jours[k].parent).length;
+    html += `<div class="carte"><h2>Comparaison</h2>
+      <div class="ligne" style="margin-top:0"><span>Jours chez un parent différent</span><b>${n}</b></div>
+      <div class="ligne"><span>Papa : planning 2 − planning 1</span><b>${res[1].total.P - res[0].total.P > 0 ? "+" : ""}${res[1].total.P - res[0].total.P}</b></div></div>`;
+  }
+  etat.plannings.forEach((p, k) => { html += carteTotaux(p, res[k], `${p.nom} · ${etat.annee}`); });
+  $("#resume").innerHTML = html;
 }
 
-/** Colonne de la zone de référence : férié prioritaire, sinon vacances. */
-function celluleVacances(m, i) {
-  const ref = G.vacances(m).has(i);
-  const vac = m.feries.has(i) ? "ferie" : (ref ? "vacRef" : "");
-  const titres = [];
-  if (m.feries.has(i)) titres.push(m.feries.get(i));
-  if (ref) titres.push(`Vacances zone ${m.regles.zone}`);
-  return { vac, titreVac: titres.join(" · ") };
-}
-/** Petites colonnes des zones indicatives (en-têtes et cellules du jour i). */
-function colonnesIndicatives(m) {
-  const ind = G.zonesIndicatives(m);
-  return {
-    cols: ind.map(() => `<col style="width:9px">`).join(""),
-    entetes: ind.map((z) => `<th class="zi" title="Zone ${z} (indicatif)">${z}</th>`).join(""),
-    cellules: (i) => ind.map((z, k) => m.vac[z].has(i)
-      ? `<td class="zi vacInd${k + 1}" title="Vacances zone ${z} (indicatif)"></td>` : `<td class="zi"></td>`).join(""),
+function rendreCalendrier(res) {
+  const deux = res.length > 1;
+  const refs = new Set(etat.plannings.map((p) => p.zone));
+  const vac = Object.fromEntries(G.ZONES.map((z) => [z, G.joursVacances(z, etat.annee)]));
+  $("#legende").innerHTML = `<span><i style="background:var(--papa)"></i>Papa</span>
+    <span><i style="background:var(--maman)"></i>Maman</span>
+    <span><b>fin 18h</b> / <b>dès 18h</b> en gras : parent à qui le jour d'échange est compté</span>
+    <span><i style="background:var(--vacRef)"></i>Vacances zone ${[...refs].join(" / ")}</span>
+    <span><i style="background:var(--vacInd)"></i>Autres zones (indicatif)</span>
+    <span><i style="background:var(--ferie)"></i>Férié</span>
+    ${deux ? `<span><b style="color:var(--accent)">•</b> parent différent entre les plannings 1 et 2</span>` : ""}`;
+  $("#calendrier").classList.toggle("deux", deux);
+
+  const cellules = (d) => {
+    const e = d.echange;
+    if (!e) return [d.parent === "P" ? ["p", ""] : ["", ""], d.parent === "M" ? ["m", ""] : ["", ""]];
+    const txt = { [e.rend]: `fin ${e.heure}`, [e.recoit]: `dès ${e.heure}` };
+    return [["p" + (d.parent === "P" ? " compte" : ""), txt.P], ["m" + (d.parent === "M" ? " compte" : ""), txt.M]];
   };
-}
-function rendreLegendeZones(m) {
-  const ind = G.zonesIndicatives(m);
-  const html = `<span><i style="background:var(--vacRef)"></i>Vacances zone ${m.regles.zone}</span>` +
-    ind.map((z, k) => `<span><i style="background:var(--vacInd${k + 1})"></i>Zone ${z} (indicatif)</span>`).join("");
-  document.querySelectorAll(".legende-zones").forEach((el) => { el.innerHTML = html; });
-  document.querySelectorAll(".zone-ref").forEach((el) => { el.textContent = m.regles.zone; });
-}
-
-function rendreCalendrier(sc, ech, lib) {
-  const m = sc.model, cal = m.cal, zi = colonnesIndicatives(m);
   let html = "";
   for (let mo = 0; mo < 12; mo++) {
-    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col><col>${zi.cols}<col style="width:22px"></colgroup>
-      <tr><th></th><th>Papa</th><th>Maman</th><th>À éviter</th>${zi.entetes}<th title="Vacances zone ${m.regles.zone}">${m.regles.zone}</th></tr>`;
-    for (let i = 0; i < cal.n; i++) {
-      if (cal.mois[i] !== mo) continue;
-      const o = m.own[i], e = ech.get(i), we = cal.jour[i] >= 5;
-      let p = o === "P" ? "p" : "", ma = o === "M" ? "m" : "", pt = "", mt = "";
-      if (e) {
-        p = "p"; ma = "m";
-        const lab = { [e.rend]: `fin ${e.heure}`, [e.recoit]: `dès ${e.heure}` };
-        pt = lab.P; mt = lab.M;
-        if (!e.ok) { p += " horsregle"; ma += " horsregle"; }
+    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:50px">
+      ${res.map(() => "<col><col>").join("")}${G.ZONES.map(() => `<col style="width:13px">`).join("")}</colgroup>`;
+    if (deux) html += `<tr><th></th>${etat.plannings.map((p, k) => `<th colspan="2" class="groupe" title="${esc(p.nom)}">${k + 1}. ${esc(p.nom)}</th>`).join("")}<th colspan="3"></th></tr>`;
+    html += `<tr><th></th>${res.map(() => `<th class="groupe">Papa</th><th>Maman</th>`).join("")}
+      ${G.ZONES.map((z) => `<th class="z${refs.has(z) ? " ref" : ""}" title="Vacances zone ${z}${refs.has(z) ? "" : " (indicatif)"}">${z}</th>`).join("")}</tr>`;
+    res[0].jours.forEach((d, k) => {
+      if (d.mois !== mo) return;
+      const diff = deux && d.parent !== res[1].jours[k].parent;
+      html += `<tr class="${d.js >= 5 ? "we" : ""}"><td class="j${d.ferie ? " ferie" : ""}"${d.ferie ? ` title="${esc(d.ferie)}"` : ""}>
+        <span class="${diff ? "diff" : ""}">${LMMJVSD[d.js]} ${d.quantieme}</span></td>`;
+      for (const r of res) {
+        cellules(r.jours[k]).forEach(([cls, txt], c) => { html += `<td class="${cls}${c === 0 ? " debut" : ""}">${txt}</td>`; });
       }
-      let aEviter = "", vt = "";
-      if (lib.has(i)) { aEviter = "libre"; vt = "LIBRE"; }
-      else if (m.eviterJours.has(i)) { aEviter = "v"; vt = ""; }
-      const { vac, titreVac } = celluleVacances(m, i);
-      const jcls = (o !== sc.refOwn[i] ? "modifie" : "") + (m.verrous.has(i) ? " verrou" : "");
-      html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${jcls}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
-        <td class="${p}">${pt}</td><td class="${ma}">${mt}</td><td class="${aEviter}">${esc(vt)}</td>${zi.cellules(i)}<td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
-    }
+      for (const z of G.ZONES) {
+        const nom = vac[z].get(d.iso);
+        html += nom ? `<td class="z ${refs.has(z) ? "vacRef" : "vacInd"}" title="${esc(nom)} zone ${z}"></td>` : `<td class="z"></td>`;
+      }
+      html += `</tr>`;
+    });
     html += `</table></div>`;
   }
   $("#calendrier").innerHTML = html;
 }
 
-function rendrePlages(sc) {
-  const pl = G.plages(sc.model);
-  const nb = (p) => (Date.parse(p.au) - Date.parse(p.du)) / 86400000 + 1;
-  $("#plages").innerHTML = pl.map((p, k) => `<tr class="${p.parent === "papa" ? "P" : "M"}" data-k="${k}">
-      <td><input type="date" data-champ="du" value="${p.du}"${k === 0 ? " disabled" : ""}></td>
-      <td><input type="date" data-champ="au" value="${p.au}"${k === pl.length - 1 ? " disabled" : ""}></td>
-      <td><select data-champ="parent"><option value="papa"${p.parent === "papa" ? " selected" : ""}>Papa</option><option value="maman"${p.parent === "maman" ? " selected" : ""}>Maman</option></select></td>
-      <td class="n">${nb(p)}</td>
-      <td><button data-action="couper" title="Couper la plage en deux">Couper</button>
-          <button data-action="suppr" title="Fusionner avec la plage précédente"${k === 0 ? " disabled" : ""}>Supprimer</button></td></tr>`).join("");
+const opt = (v, t, sel) => `<option value="${v}"${String(v) === String(sel) ? " selected" : ""}>${t}</option>`;
+function champsEchange(cle, r) {
+  return `
+    <label class="champ">Jour <select data-champ="${cle}.jour">${G.JOURS.map((j) => opt(j, j, r.jour)).join("")}</select></label>
+    <label class="champ">Heure <input type="text" data-champ="${cle}.heure" value="${esc(r.heure)}" size="6"></label>
+    <label class="champ">Le jour d'échange compte pour <select data-champ="${cle}.compte">
+      ${opt("rend", "celui qui rend", r.compte)}${opt("recoit", "celui qui reçoit", r.compte)}</select></label>`;
 }
 
-function rendreEviter(sc) {
-  $("#eviterAbsent").classList.toggle("cache", !!etat.aEviter);
-  $("#eviterPresent").classList.toggle("cache", !etat.aEviter);
-  if (!etat.aEviter) return;
-  const m = sc.model, cal = m.cal;
-  $("#eviterNomExport").textContent = `→ a_eviter_${etat.aEviter.annee}.json, à placer dans data/`;
-  let html = "";
-  for (let mo = 0; mo < 12; mo++) {
-    html += `<div class="mois"><h3>${G.MOIS[mo]}</h3><table><colgroup><col style="width:52px"><col><col style="width:22px"></colgroup>
-      <tr><th></th><th>À éviter</th><th title="Vacances zone ${m.regles.zone}">${m.regles.zone}</th></tr>`;
-    for (let i = 0; i < cal.n; i++) {
-      if (cal.mois[i] !== mo) continue;
-      const we = cal.jour[i] >= 5;
-      let aEviter = "", libelle = "";
-      if (m.eviterJours.has(i)) { aEviter = "v"; libelle = ""; }
-      const { vac, titreVac } = celluleVacances(m, i);
-      const ancre = etat.eviterAncre === i ? "ancre" : "";
-      html += `<tr class="jour${we ? " we" : ""}" data-i="${i}"><td class="j"><span class="${ancre}">${"LMMJVSD"[cal.jour[i]]} ${cal.quantieme[i]}</span></td>
-        <td class="${aEviter}">${esc(libelle)}</td><td class="vac ${vac}" title="${esc(titreVac)}"></td></tr>`;
-    }
-    html += `</table></div>`;
+function rendrePlanning(k, r) {
+  const el = $("#onglet-planning"), p = etat.plannings[k];
+  if (!p) {
+    el.innerHTML = `<div class="vide"><p><b>Pas de planning 2.</b><br>
+      Le planning 2 est une variante, réglée comme le planning 1 et affichée à côté de lui dans le calendrier pour comparer.</p>
+      <p><button id="btnCreer2" class="primaire">Créer le planning 2 (copie du planning 1)</button></p></div>`;
+    return;
   }
-  $("#calendrierEviter").innerHTML = html;
-  const nb = (p) => (Date.parse(p.au) - Date.parse(p.du)) / 86400000 + 1;
-  $("#periodesEviter").innerHTML = etat.aEviter.jours_a_eviter.map((p, k) => `<tr data-k="${k}">
-      <td><input type="date" data-champ="du" value="${p.du}"></td>
-      <td><input type="date" data-champ="au" value="${p.au}"></td>
-      <td class="n">${nb(p)}</td>
-      <td><button data-action="suppr">Supprimer</button></td></tr>`).join("") ||
-    `<tr><td colspan="4" class="aide">Aucune période : clique sur des jours du calendrier.</td></tr>`;
-}
-
-function champRegle(id, r) {
-  const fs = $(id);
-  fs.querySelectorAll("label").forEach((l) => l.remove());
-  fs.insertAdjacentHTML("beforeend", `
-    <label class="champ">Jour <select data-r="jour">${G.JOURS.map((j, i) => `<option value="${i}"${i === r.jour ? " selected" : ""}>${j}</option>`).join("")}</select></label>
-    <label class="champ">Heure <input type="text" data-r="heure" value="${esc(r.heure)}" size="6"></label>
-    <label class="champ">Le jour d'échange compte pour <select data-r="attr">
-      <option value="rend"${r.attr === "rend" ? " selected" : ""}>celui qui rend</option>
-      <option value="recoit"${r.attr === "recoit" ? " selected" : ""}>celui qui reçoit</option></select></label>`);
-}
-
-const OPTS = [
-  ["blocMax", "Bloc max hors été (jours)"], ["blocMaxEte", "Bloc max l'été (jours)"], ["blocMin", "Bloc min (jours)"],
-  ["poidsEquite", "Poids de l'équité (par jour d'écart)"], ["bonusWeekend", "Bonus par week-end libre"],
-];
-function rendreRegles(sc) {
-  const m = sc.model;
-  champRegle("#regleScolaire", m.regles.scolaire);
-  champRegle("#regleVacances", m.regles.vacances);
-  $("#zone").innerHTML = G.ZONES.map((z) => `<option value="${z}"${z === m.regles.zone ? " selected" : ""}>Zone ${z}</option>`).join("");
-  $("#suffixe").value = m.data.suffixe || "";
-  $("#titreVariante").value = m.data.titre_variante || "";
-  const fs = $("#optionsSuggestion");
-  fs.querySelectorAll("label").forEach((l) => l.remove());
-  fs.insertAdjacentHTML("beforeend", OPTS.map(([k, t]) => `<label class="champ">${t} <input type="number" min="0" data-opt="${k}" value="${etat.options[k]}"></label>`).join("") +
-    `<label class="champ">Garder les week-ends libres de la référence <input type="checkbox" data-opt="garderLibres"${etat.options.garderLibres ? " checked" : ""}></label>
-     <label class="champ">Respecter les jours verrouillés <input type="checkbox" data-opt="utiliserVerrous"${etat.options.utiliserVerrous ? " checked" : ""}></label>`);
-  $("#nbVerrous").textContent = `${m.verrous.size} jour(s) verrouillé(s).`;
-}
-
-function rendreExport(sc) {
-  const nom = nomFichier(sc.model);
-  const pret = !!(window.jspdf && window.Impression);
-  $("#btnPdfPapaMaman").disabled = !pret;
-  $("#btnPdfAEviter").disabled = !pret || !sc.model.avecEviter;
-  $("#pdfInfo").textContent = !pret ? "Bibliothèque jsPDF non chargée."
-    : sc.model.avecEviter ? "" : "PDF jours à éviter : charge d'abord les jours à éviter.";
-  $("#nomExport").textContent = nom;
-  $("#commandes").textContent = ["count_days", "generate_pdf"]
-    .map((s) => `uv run python scripts/${s}.py data/${nom}`).join("\n") +
-    `\n# jours à éviter : data/a_eviter_${sc.model.data.annee}.json (pris automatiquement s'il existe, ou --a-eviter FICHIER)`;
-}
-
-function flash(i) {
-  if (i === "" || i == null) return;
-  if (etat.onglet !== "calendrier") { etat.onglet = "calendrier"; rendre(); }
-  const tr = document.querySelector(`tr[data-i="${i}"]`);
-  if (!tr) return;
-  tr.scrollIntoView({ behavior: "smooth", block: "center" });
-  tr.classList.remove("flash"); void tr.offsetWidth; tr.classList.add("flash");
+  const autre = p.semainesPapa === "paires" ? "impaires" : "paires";
+  el.innerHTML = `
+    <div class="grille-regles" data-k="${k}">
+      <fieldset><legend>Planning</legend>
+        <label class="champ">Nom <input type="text" data-champ="nom" value="${esc(p.nom)}"></label>
+        <label class="champ">Zone de vacances <select data-champ="zone">${G.ZONES.map((z) => opt(z, `Zone ${z}`, p.zone)).join("")}</select></label>
+        <p class="aide">Les vacances de cette zone déclenchent l'échange des vacances. Les autres zones sont affichées à titre indicatif.</p>
+      </fieldset>
+      <fieldset><legend>Hors vacances</legend>
+        ${champsEchange("hors", p.hors)}
+        <label class="champ">Papa a les semaines <select data-champ="semainesPapa">${opt("paires", "paires", p.semainesPapa)}${opt("impaires", "impaires", p.semainesPapa)}</select></label>
+        <p class="aide">Une semaine va d'un échange au suivant ; elle est paire si l'échange qui l'ouvre tombe une semaine ISO de numéro pair.
+          Maman a les semaines ${autre}.</p>
+      </fieldset>
+      <fieldset><legend>Vacances</legend>
+        ${champsEchange("vacances", p.vacances)}
+        <p class="aide">Les vacances commencent au premier jour d'échange des vacances compris dans les vacances officielles ;
+          avant, et après la dernière semaine de vacances, le rythme hors vacances s'applique.</p>
+      </fieldset>
+      <fieldset><legend>Partage des vacances</legend>
+        <label class="champ">Petites vacances : les années paires, Papa a la
+          <select data-champ="petitesVacancesPapa">${opt(1, "1re semaine", p.petitesVacancesPapa)}${opt(2, "2e semaine", p.petitesVacancesPapa)}</select></label>
+        <label class="champ">Été : les années paires, Papa a les quinzaines
+          <select data-champ="etePapa">${opt("1-3", "1 et 3", p.etePapa)}${opt("2-4", "2 et 4", p.etePapa)}</select></label>
+        <p class="aide">C'est l'inverse les années impaires. L'année est celle du début des vacances (Noël 2026-2027 : année paire).
+          Toussaint, Noël, hiver et printemps : 2 semaines ; été : jusqu'à 4 quinzaines.</p>
+      </fieldset>
+    </div>
+    ${k === 1 ? `<div class="actions"><button id="btnCopier1">Recopier le planning 1</button><button id="btnSupprimer2">Supprimer le planning 2</button></div>` : ""}
+    <h3 class="section">Résumé des règles</h3>
+    ${G.texteRegles(p).map((t) => `<p class="aide" style="margin:0 0 4px">${esc(t)}</p>`).join("")}
+    <h3 class="section">Vacances ${etat.annee} (zone ${p.zone})</h3>
+    <table class="blocs"><thead><tr><th>Vacances</th><th>Bloc</th><th>Du</th><th>Au</th><th>Chez</th></tr></thead><tbody>
+      ${r.blocs.map((b) => `<tr><td>${esc(b.vacances)}</td><td>${b.ete ? "quinzaine" : "semaine"} ${b.numero}</td>
+        <td>${fmtDate(b.du)} ${b.du.heure}</td><td>${fmtDate(b.au)} ${b.au.heure}</td>
+        <td class="${b.parent}">${G.NOM[b.parent]}</td></tr>`).join("")}
+    </tbody></table>`;
 }
 
 // ---------------- Événements ----------------
 
-$("#calendrier").addEventListener("click", (ev) => {
-  const tr = ev.target.closest("tr.jour"); if (!tr) return;
-  const i = +tr.dataset.i;
-  if (ev.ctrlKey || ev.metaKey) modifier((m) => { m.verrous.has(i) ? m.verrous.delete(i) : m.verrous.add(i); });
-  else if (ev.shiftKey) modifier((m) => G.basculerJour(m, i));
-  else modifier((m) => G.basculerDepuis(m, i));
-});
-
-$("#plages").addEventListener("change", (ev) => {
-  const el = ev.target, k = +el.closest("tr").dataset.k, champ = el.dataset.champ;
-  const sc = courant(), pl = G.plages(sc.model);
-  const jour = (s, n) => { const d = new Date(Date.parse(s) + n * 86400000); return d.toISOString().slice(0, 10); };
-  pl[k][champ] = el.value;
-  if (champ === "au" && pl[k + 1]) pl[k + 1].du = jour(el.value, 1);
-  if (champ === "du" && pl[k - 1]) pl[k - 1].au = jour(el.value, -1);
-  // une plage écrasée par sa voisine disparaît
-  const liste = pl.filter((p) => p.du <= p.au);
-  for (let j = 1; j < liste.length; j++) if (liste[j].du <= liste[j - 1].au) liste[j].du = jour(liste[j - 1].au, 1);
-  const err = G.appliquerPlages(G.cloner(sc.model), liste);
-  $("#erreursPlages").textContent = err.join(" ");
-  if (!err.length) modifier((m) => G.appliquerPlages(m, liste));
-});
-$("#plages").addEventListener("click", (ev) => {
+document.querySelector(".onglets").addEventListener("click", (ev) => {
   const b = ev.target.closest("button"); if (!b) return;
-  const k = +b.closest("tr").dataset.k, sc = courant(), pl = G.plages(sc.model);
-  const jour = (s, n) => new Date(Date.parse(s) + n * 86400000).toISOString().slice(0, 10);
-  if (b.dataset.action === "suppr") { pl[k - 1].au = pl[k].au; pl.splice(k, 1); }
-  if (b.dataset.action === "couper") {
-    const p = pl[k], n = (Date.parse(p.au) - Date.parse(p.du)) / 86400000 + 1;
-    if (n < 2) return;
-    const mil = jour(p.du, Math.floor(n / 2) - 1);
-    pl.splice(k + 1, 0, { du: jour(mil, 1), au: p.au, parent: p.parent === "papa" ? "maman" : "papa" });
-    p.au = mil;
-  }
-  modifier((m) => G.appliquerPlages(m, pl));
+  etat.onglet = b.dataset.onglet; rendre(); sauver();
 });
-
-function lireRegle(id) {
-  const fs = $(id), v = (k) => fs.querySelector(`[data-r="${k}"]`).value;
-  return { jour: +v("jour"), heure: G.heureNorm(v("heure")), attr: v("attr") };
-}
-$("#onglet-regles").addEventListener("change", (ev) => {
-  const t = ev.target;
-  if (t.dataset.r) modifier((m) => { m.regles = Object.assign({}, m.regles, { scolaire: lireRegle("#regleScolaire"), vacances: lireRegle("#regleVacances") }); });
-  if (t.id === "zone") modifier((m) => { m.regles = Object.assign({}, m.regles, { zone: t.value }); });
-  if (t.id === "suffixe") modifier((m) => { m.data.suffixe = t.value.trim(); });
-  if (t.id === "titreVariante") modifier((m) => { m.data.titre_variante = t.value; });
-  if (t.dataset.opt) {
-    etat.options[t.dataset.opt] = t.type === "checkbox" ? t.checked : +t.value;
-    rendre(); sauver();
-  }
-});
-$("#btnVerrouEte").addEventListener("click", () => modifier((m) => { for (const i of G.ete(m)) m.verrous.add(i); }));
-$("#btnDeverrouiller").addEventListener("click", () => modifier((m) => m.verrous.clear()));
-$("#btnSuggerer").addEventListener("click", () => {
-  const sc = courant(); if (!sc) return;
-  const t0 = performance.now();
-  const res = G.suggerer(sc.model, etat.options, sc.refLibres);
-  if (!res) { $("#resultatSuggestion").textContent = "Aucun planning possible avec ces verrous et contraintes."; return; }
-  const nom = `${sc.nom} · suggestion`;
-  const data = G.exporter(res, { suffixe: `${sc.model.data.suffixe || ""}_suggestion` });
-  const ns = nouveauScenario(nom, data, { own: sc.refOwn, libres: [...sc.refLibres] });
-  etat.scenarios.push(ns); etat.courant = ns.id; etat.onglet = "calendrier";
-  const c = G.compter(res);
+$("#onglet-planning").addEventListener("change", (ev) => {
+  const t = ev.target, champ = t.dataset.champ; if (!champ) return;
+  const k = +etat.onglet, p = JSON.parse(JSON.stringify(etat.plannings[k]));
+  const [a, b] = champ.split(".");
+  if (b) p[a][b] = t.value; else p[a] = t.value;
+  etat.plannings[k] = G.normaliser(p);
   rendre(); sauver();
-  $("#resultatSuggestion").textContent = `Nouveau scénario « ${nom} » : Papa ${c.P} / Maman ${c.M} (${Math.round(performance.now() - t0)} ms).`;
 });
-
-$("#alertes").addEventListener("click", (ev) => { const li = ev.target.closest("li"); if (li) flash(li.dataset.jour); });
-document.querySelector(".onglets").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) { etat.onglet = b.dataset.onglet; rendre(); } });
-$("#selScenario").addEventListener("change", (ev) => { etat.courant = ev.target.value; rendre(); sauver(); });
-$("#btnDupliquer").addEventListener("click", () => {
-  const sc = courant(); const nom = prompt("Nom du nouveau scénario :", `${sc.nom} (copie)`); if (!nom) return;
-  const ns = nouveauScenario(nom, G.exporter(sc.model, { suffixe: `_${slug(nom)}` }), { own: sc.refOwn, libres: [...sc.refLibres] });
-  etat.scenarios.push(ns); etat.courant = ns.id; rendre(); sauver();
+$("#onglet-planning").addEventListener("click", (ev) => {
+  const id = ev.target.id;
+  if (id === "btnCreer2" || id === "btnCopier1") {
+    if (id === "btnCopier1" && !confirm("Remplacer les règles du planning 2 par celles du planning 1 ?")) return;
+    const nom = etat.plannings[1] ? etat.plannings[1].nom : "Planning 2";
+    etat.plannings[1] = G.normaliser(Object.assign({}, etat.plannings[0], { nom }));
+  } else if (id === "btnSupprimer2") {
+    if (!confirm("Supprimer le planning 2 ?")) return;
+    etat.plannings.length = 1; etat.onglet = "calendrier";
+  } else return;
+  rendre(); sauver();
 });
-$("#btnRenommer").addEventListener("click", () => { const sc = courant(); const nom = prompt("Nouveau nom :", sc.nom); if (nom) { sc.nom = nom; rendre(); sauver(); } });
-$("#btnSupprimer").addEventListener("click", () => {
-  const sc = courant(); if (!confirm(`Supprimer le scénario « ${sc.nom} » de ce navigateur ? (les fichiers du dépôt ne sont pas touchés)`)) return;
-  etat.scenarios = etat.scenarios.filter((s) => s !== sc); etat.courant = etat.scenarios[0] ? etat.scenarios[0].id : null; rendre(); sauver();
+$("#annee").addEventListener("change", (ev) => { etat.annee = +ev.target.value; rendre(); sauver(); });
+$("#btnImporter").addEventListener("click", () => $("#fichier").click());
+$("#fichier").addEventListener("change", (ev) => { if (ev.target.files[0]) importer(ev.target.files[0]); ev.target.value = ""; });
+$("#btnExporter").addEventListener("click", () => telecharger(`garde_${etat.annee}.json`, { format: FORMAT, annee: etat.annee, plannings: etat.plannings }));
+$("#btnPdf").addEventListener("click", () => {
+  const doc = Impression.documentPDF(etat.plannings, etat.annee);
+  Impression.versJsPDF(window.jspdf.jsPDF, doc).save(doc.fichier);
 });
 $("#btnReinit").addEventListener("click", () => {
-  if (!confirm("Remettre à zéro ? Tous les scénarios, les jours à éviter et les options enregistrés dans ce navigateur seront effacés (les fichiers du dépôt ne sont pas touchés).")) return;
+  if (!confirm("Remettre à zéro ? Les règles enregistrées dans ce navigateur seront effacées.")) return;
   try { localStorage.removeItem(CLE); } catch (e) { /* stockage indisponible */ }
   location.reload();
 });
-$("#btnReference").addEventListener("click", () => { const sc = courant(); definirReference(sc); rendre(); sauver(); });
-function telechargerPDF(type) {
-  const sc = courant(); if (!sc || !window.jspdf) return;
-  const doc = Impression.documentPDF(sc.model, type, nomFichier(sc.model));
-  Impression.versJsPDF(window.jspdf.jsPDF, doc).save(doc.fichier);
-}
-$("#btnPdfPapaMaman").addEventListener("click", () => telechargerPDF("papa_maman"));
-$("#btnPdfAEviter").addEventListener("click", () => telechargerPDF("a_eviter"));
-$("#btnCopier").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText($("#commandes").textContent));
-$("#btnAnnuler").addEventListener("click", annuler);
-$("#btnRetablir").addEventListener("click", retablir);
-$("#calendrierEviter").addEventListener("click", (ev) => {
-  const tr = ev.target.closest("tr.jour"); if (!tr || !etat.aEviter) return;
-  const i = +tr.dataset.i, sc = courant();
-  const avec = !sc.model.eviterJours.has(i); // le jour cliqué bascule ; Maj : même état jusqu'à l'ancre
-  const a = ev.shiftKey && etat.eviterAncre != null ? etat.eviterAncre : i;
-  const valeur = ev.shiftKey && etat.eviterAncre != null ? sc.model.eviterJours.has(etat.eviterAncre) : avec;
-  etat.eviterAncre = i;
-  modifierEviter(G.eviterBasculer(etat.aEviter.annee, etat.aEviter.jours_a_eviter, a, i, valeur));
-});
-$("#periodesEviter").addEventListener("change", (ev) => {
-  const el = ev.target, k = +el.closest("tr").dataset.k;
-  const liste = etat.aEviter.jours_a_eviter.map((p) => Object.assign({}, p));
-  const v = el.value.trim();
-  if (v) liste[k][el.dataset.champ] = v; else delete liste[k][el.dataset.champ];
-  if (liste[k].du > liste[k].au) { rendre(); return; }
-  modifierEviter(G.eviterNormaliser(etat.aEviter.annee, liste));
-});
-$("#periodesEviter").addEventListener("click", (ev) => {
-  const b = ev.target.closest("button[data-action=suppr]"); if (!b) return;
-  const k = +b.closest("tr").dataset.k;
-  modifierEviter(etat.aEviter.jours_a_eviter.filter((_, j) => j !== k));
-});
-$("#btnEviterVide").addEventListener("click", () => {
-  const sc = courant();
-  definirEviter({ nom: "nouveau (à exporter)", annee: sc ? sc.model.data.annee : 2027,
-    description: "Jours où Papa préfère ne pas avoir la garde (activité, déplacement…), créés avec l'éditeur.", jours_a_eviter: [] });
-});
-$("#btnEviterExporter").addEventListener("click", exporterEviter);
-$("#anneeNouveau").innerHTML = G.ANNEES.map((a) => `<option value="${a}">${a}</option>`).join("");
-$("#btnNouveau").addEventListener("click", () => nouveauVide());
-$("#btnEviter").addEventListener("click", () => $("#fichierEviter").click());
-$("#fichierEviter").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });
-$("#btnRetirerEviter").addEventListener("click", () => definirEviter(null));
-$("#btnVide").addEventListener("click", () => nouveauVide());
-$("#btnImporter").addEventListener("click", () => $("#fichier").click());
-$("#fichier").addEventListener("change", (ev) => { importer([...ev.target.files]); ev.target.value = ""; });
-$("#btnExporter").addEventListener("click", exporter);
-document.addEventListener("keydown", (ev) => {
-  if (ev.target.matches("input, select")) return;
-  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !ev.shiftKey) { ev.preventDefault(); annuler(); }
-  if ((ev.ctrlKey || ev.metaKey) && (ev.key.toLowerCase() === "y" || (ev.key.toLowerCase() === "z" && ev.shiftKey))) { ev.preventDefault(); retablir(); }
-});
 window.addEventListener("dragover", (ev) => ev.preventDefault());
-window.addEventListener("drop", (ev) => { ev.preventDefault(); importer([...ev.dataTransfer.files].filter((f) => f.name.endsWith(".json"))); });
+window.addEventListener("drop", (ev) => { ev.preventDefault(); const f = [...ev.dataTransfer.files].find((x) => x.name.endsWith(".json")); if (f) importer(f); });
 
 restaurer();
-// Premier lancement (aucun scénario dans ce navigateur) : on démarre sur une suggestion (options par défaut).
-if (!etat.scenarios.length) {
-  // jours à éviter par défaut (outil/a_eviter_defaut.js), pris en compte par la suggestion
-  if (!etat.aEviter && window.A_EVITER_DEFAUT) {
-    const d = window.A_EVITER_DEFAUT;
-    etat.aEviter = { nom: `a_eviter_${d.annee}.json (par défaut)`, annee: d.annee, description: d.description,
-      jours_a_eviter: d.jours_a_eviter };
-  }
-  nouveauVide(true);
-}
-else rendre();
+rendre();
 </script>
 </body>
 </html>

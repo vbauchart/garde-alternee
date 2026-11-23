@@ -1,8 +1,13 @@
-/* Logique du planning de garde (sans interface).
+/* Calcul du planning de garde par règles strictes (sans interface).
  *
- * Même modèle que scripts/common.py : la garde est une liste de plages
- * {du, au, parent} où chaque jour est attribué à un parent. Ce fichier est
- * utilisé par editeur.html (navigateur) et testable avec node.
+ * Un planning est entièrement décrit par sa configuration (voir
+ * PLANNING_DEFAUT) : zone de vacances, échange hors vacances et en vacances
+ * (jour, heure, à qui compte le jour d'échange), parité des semaines de Papa,
+ * semaine de Papa aux petites vacances et quinzaines de Papa l'été (années
+ * paires ; inversé les années impaires). Aucun calcul automatique : le
+ * planning est la conséquence directe des règles (voir CONTRAINTES.md).
+ *
+ * Utilisé par editeur.html (navigateur) et testable avec node.
  */
 (function (global) {
   "use strict";
@@ -10,495 +15,69 @@
   const JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
   const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet",
     "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-  const PARENT = { P: "papa", M: "maman" };
-  const CODE = { papa: "P", maman: "M" };
-  const autre = (o) => (o === "P" ? "M" : "P");
-
-  // Règles par défaut (fichier principal sans regles.echanges)
-  const ECHANGES_DEFAUT = [
-    { jour: "mercredi", heure: "18h", jour_attribue_a: "rend" },
-    { jour: "samedi", heure: "18h", jour_attribue_a: "rend" },
-  ];
-
-  // Zones de vacances scolaires : la zone de référence (regles.zone) déclenche
-  // la règle d'échange des vacances et l'été ; les autres sont indicatives.
   const ZONES = ["A", "B", "C"];
-  const ZONE_DEFAUT = "B";
+  const NOM = { P: "Papa", M: "Maman" };
+  const JOUR_MS = 86400000;
 
-  const OPTIONS_DEFAUT = {
-    blocMax: 10, blocMaxEte: 14, blocMin: 5,
-    poidsEquite: 40, bonusWeekend: 30, poidsAlignementEviter: 0.3,
-    garderLibres: true, utiliserVerrous: true,
+  const PLANNING_DEFAUT = {
+    nom: "Planning 1",
+    zone: "C",
+    hors: { jour: "mercredi", heure: "18h", compte: "rend" },     // échange hors vacances
+    vacances: { jour: "samedi", heure: "18h", compte: "rend" },   // échange en vacances
+    semainesPapa: "paires",       // semaines ISO (de l'échange qui ouvre la semaine) de Papa
+    petitesVacancesPapa: 1,       // semaine de Papa aux petites vacances, années paires
+    etePapa: "1-3",               // quinzaines de Papa l'été, années paires ("1-3" ou "2-4")
   };
 
-  // ---------- Dates (index de jour dans l'année, 0 = 1er janvier) ----------
+  // ---------- Dates : un jour = nombre de jours depuis le 1970-01-01 (UTC) ----------
 
-  function calendrier(annee) {
-    const n = (Date.UTC(annee + 1, 0, 1) - Date.UTC(annee, 0, 1)) / 86400000;
-    const iso = [], jour = [], mois = [], quantieme = [];
-    for (let i = 0; i < n; i++) {
-      const d = new Date(Date.UTC(annee, 0, 1 + i));
-      iso.push(d.toISOString().slice(0, 10));
-      jour.push((d.getUTCDay() + 6) % 7); // 0 = lundi
-      mois.push(d.getUTCMonth());
-      quantieme.push(d.getUTCDate());
-    }
-    const index = new Map(iso.map((s, i) => [s, i]));
-    return { annee, n, iso, jour, mois, quantieme, index };
+  const versJour = (iso) => Math.round(Date.parse(`${iso}T00:00:00Z`) / JOUR_MS);
+  const versIso = (j) => new Date(j * JOUR_MS).toISOString().slice(0, 10);
+  const jourSemaine = (j) => (((j + 3) % 7) + 7) % 7; // 0 = lundi (le 1970-01-01 est un jeudi)
+
+  /** Numéro de semaine ISO 8601 du jour j. */
+  function semaineIso(j) {
+    const jeudi = j - jourSemaine(j) + 3;
+    const annee = new Date(jeudi * JOUR_MS).getUTCFullYear();
+    return Math.floor((jeudi - versJour(`${annee}-01-01`)) / 7) + 1;
   }
 
-  function idx(cal, s) {
-    if (cal.index.has(s)) return cal.index.get(s);
-    return s < cal.iso[0] ? -1 : cal.n; // hors année
+  /** "18h", "18h30", "9:15" -> minutes depuis minuit. */
+  function minutes(h) {
+    const m = String(h || "").trim().match(/^(\d{1,2})\s*(?:[h:]\s*(\d{2})?)?$/i);
+    if (!m) return 18 * 60;
+    return Math.min(23, +m[1]) * 60 + Math.min(59, +(m[2] || 0));
   }
-
-  function plagesVersJours(cal, plages, valeur) {
-    const out = new Map();
-    for (const p of plages) {
-      const a = Math.max(0, idx(cal, p.du)), b = Math.min(cal.n - 1, idx(cal, p.au));
-      for (let i = a; i <= b; i++) out.set(i, valeur ? valeur(p) : true);
-    }
-    return out;
-  }
-
-  // ---------- Règles ----------
-
   function heureNorm(h) {
-    if (!h) return "18h";
-    const m = String(h).match(/^(\d{1,2})(?::(\d{2}))?h?(\d{2})?$/);
-    if (!m) return String(h);
-    const mn = m[2] || m[3];
-    return `${parseInt(m[1], 10)}h${mn && mn !== "00" ? mn : ""}`;
+    const t = minutes(h), mn = t % 60;
+    return `${Math.floor(t / 60)}h${mn ? String(mn).padStart(2, "0") : ""}`;
   }
 
-  /** regles du JSON -> {scolaire:{jour,heure,attr}, vacances:{...}} */
-  function lireRegles(regles) {
-    regles = regles || {};
-    const ech = regles.echanges || ECHANGES_DEFAUT;
-    const parJour = new Map(ech.map((e) => [e.jour, e]));
-    function regle(cle, defaut) {
-      const r = regles[cle] || {};
-      const jour = r.jour || defaut;
-      const e = parJour.get(jour) || {};
-      return {
-        jour: JOURS.indexOf(jour),
-        heure: heureNorm(r.heure || e.heure),
-        attr: e.jour_attribue_a || "rend",
-      };
-    }
-    const zone = String(regles.zone || ZONE_DEFAUT).toUpperCase();
-    return { scolaire: regle("echange_scolaire", "mercredi"), vacances: regle("echange_vacances", "samedi"),
-      zone: ZONES.includes(zone) ? zone : ZONE_DEFAUT };
-  }
+  // ---------- Calendrier scolaire officiel (données publiques) ----------
+  // « du » = premier jour des vacances (après la classe), « au » = veille de la reprise.
 
-  function texteAttribution(r) {
-    const t = (x) => (x.attr === "recoit"
-      ? `celui qui les reçoit le ${JOURS[x.jour]} ${x.heure}`
-      : `celui qui les rend le ${JOURS[x.jour]} ${x.heure}`);
-    return `Le jour d'échange est attribué au parent qui a les enfants l'après-midi : ${t(r.scolaire)} (période scolaire), ${t(r.vacances)} (vacances).`;
-  }
+  const NOEL_2026 = { nom: "Noël", du: "2026-12-19", au: "2027-01-03" };
+  const ETE_2027 = { nom: "Été", du: "2027-07-03", au: "2027-09-01" };
+  const TOUSSAINT_2027 = { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" };
+  const NOEL_2027 = { nom: "Noël", du: "2027-12-18", au: "2028-01-02" };
+  // Calendrier 2028-2029 pas encore publié : la fin de l'été 2028 est arrêtée au
+  // 31 août, Toussaint et Noël 2028 manquent.
+  const ETE_2028 = { nom: "Été", du: "2028-07-04", au: "2028-08-31" };
+  const CALENDRIER_CONNU_JUSQUA = "2028-08-31";
 
-  function ecrireRegles(r, ancien) {
-    const s = r.scolaire, v = r.vacances;
-    const echanges = [{ jour: JOURS[s.jour], heure: s.heure, jour_attribue_a: s.attr }];
-    if (v.jour !== s.jour) echanges.push({ jour: JOURS[v.jour], heure: v.heure, jour_attribue_a: v.attr });
-    return Object.assign({}, ancien || {}, {
-      zone: r.zone || ZONE_DEFAUT,
-      echange_scolaire: { jour: JOURS[s.jour], heure: s.heure },
-      echange_vacances: { jour: JOURS[v.jour], heure: v.heure },
-      attribution: texteAttribution(r),
-      echanges,
-    });
-  }
-
-  // ---------- Modèle ----------
-
-  /**
-   * Construit le modèle de travail à partir d'un JSON de planning et, en
-   * option, des jours à éviter chargés à part ({annee, jours_a_eviter}).
-   * Sans jours à éviter, les journées et soirs libres ne sont ni calculés ni optimisés.
-   */
-  function charger(data, aEviter) {
-    const cal = calendrier(data.annee);
-    const avecEviter = !!(aEviter || data.jours_a_eviter);
-    if (aEviter) data = Object.assign({}, data, { jours_a_eviter: aEviter.jours_a_eviter || [] });
-    const garde = plagesVersJours(cal, data.garde_segments, (p) => CODE[p.parent]);
-    const own = new Array(cal.n);
-    for (let i = 0; i < cal.n; i++) own[i] = garde.get(i) || null;
-    // vacances par zone ; la plus longue période d'une zone = son été (blocs plus longs autorisés)
-    const vac = {}, etes = {};
-    for (const z of ZONES) {
-      const periodes = (data.vacances || {})[`zone_${z.toLowerCase()}`];
-      if (!periodes) continue;
-      vac[z] = new Set(plagesVersJours(cal, periodes).keys());
-      etes[z] = new Set();
-      for (const p of periodes) {
-        const s = new Set(plagesVersJours(cal, [p]).keys());
-        if (s.size > etes[z].size) etes[z] = s;
-      }
-    }
-    const eviterJours = new Set(plagesVersJours(cal, data.jours_a_eviter || []).keys());
-    const feries = new Map((data.feries || []).map((f) => [idx(cal, f.date), f.nom]));
-    const verrous = new Set((data.verrous || []).map((s) => idx(cal, s)));
-    return {
-      cal, own, regles: lireRegles(data.regles), vac, etes, eviterJours,
-      feries, verrous, data, avecEviter,
-    };
-  }
-
-  const VIDE = new Set();
-  /** Jours de vacances de la zone de référence. */
-  function vacances(m) { return m.vac[m.regles.zone] || VIDE; }
-  /** Été de la zone de référence. */
-  function ete(m) { return m.etes[m.regles.zone] || VIDE; }
-  /** Zones indicatives (toutes sauf la référence) présentes dans les données. */
-  function zonesIndicatives(m) { return ZONES.filter((z) => z !== m.regles.zone && m.vac[z]); }
-
-  function cloner(m) {
-    return Object.assign({}, m, { own: m.own.slice(), verrous: new Set(m.verrous),
-      regles: JSON.parse(JSON.stringify(m.regles)) });
-  }
-
-  function plages(m) {
-    const out = [];
-    for (let i = 0; i < m.cal.n; i++) {
-      const o = m.own[i];
-      const last = out[out.length - 1];
-      if (last && last.o === o && last.b === i - 1) last.b = i;
-      else out.push({ a: i, b: i, o });
-    }
-    return out.map((s) => ({ du: m.cal.iso[s.a], au: m.cal.iso[s.b], parent: PARENT[s.o] }));
-  }
-
-  /** JSON exportable (mêmes champs que l'original + garde/règles modifiées). */
-  function exporter(m, extra) {
-    const d = JSON.parse(JSON.stringify(m.data));
-    delete d.jours_a_eviter; // les jours à éviter vivent dans leur propre fichier
-    d.garde_segments = plages(m);
-    d.regles = ecrireRegles(m.regles, d.regles);
-    if (m.verrous.size) d.verrous = [...m.verrous].sort((a, b) => a - b).map((i) => m.cal.iso[i]);
-    else delete d.verrous;
-    return Object.assign(d, extra || {});
-  }
-
-  // ---------- Analyses ----------
-
-  function regleDuJour(m, i) {
-    return vacances(m).has(i) ? m.regles.vacances : m.regles.scolaire;
-  }
-
-  /**
-   * Règle d'échange valable le jour x, ou null. Un échange qui tombe un jour
-   * férié est reporté au lendemain (ex. samedi 25/12 -> dimanche 26/12).
-   */
-  function regleEchange(m, x) {
-    if (x < 0 || x >= m.cal.n) return null;
-    const r = regleDuJour(m, x);
-    if (m.cal.jour[x] === r.jour && !m.feries.has(x)) return r;
-    if (x > 0 && m.feries.has(x - 1)) {
-      const r0 = regleDuJour(m, x - 1);
-      if (m.cal.jour[x - 1] === r0.jour) return { ...r0, reporte: true };
-    }
-    return null;
-  }
-
-  /** Échanges : Map(jour -> {rend, recoit, heure, ok, attendu, reporte}). */
-  function echanges(m) {
-    const out = new Map();
-    for (let d = 0; d + 1 < m.cal.n; d++) {
-      const a = m.own[d], b = m.own[d + 1];
-      if (a === b) continue;
-      const rS = regleEchange(m, d + 1), rF = regleEchange(m, d);
-      if (rS && rS.attr === "recoit") {
-        out.set(d + 1, { rend: a, recoit: b, heure: rS.heure, ok: true, reporte: !!rS.reporte });
-      } else if (rF && rF.attr === "rend") {
-        out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: true, reporte: !!rF.reporte });
-      } else {
-        const rF = regleDuJour(m, d);
-        const attendu = `${vacances(m).has(d) ? "vacances" : "période scolaire"} : ${JOURS[rF.jour]} ${rF.heure}`;
-        out.set(d, { rend: a, recoit: b, heure: rF.heure, ok: false, attendu });
-      }
-    }
-    return out;
-  }
-
-  function compter(m) {
-    const mois = MOIS.map(() => ({ P: 0, M: 0 }));
-    let P = 0, M = 0;
-    m.own.forEach((o, i) => { if (o) { mois[m.cal.mois[i]][o]++; if (o === "P") P++; else M++; } });
-    return { P, M, ecart: Math.abs(P - M), mois };
-  }
-
-  /** Qui a les enfants la nuit du jour i (soir de i -> matin de i+1). */
-  function nuitDe(m, ech, i) {
-    return ech.has(i) ? ech.get(i).recoit : m.own[i];
-  }
-
-  /** Journées et soirs libres : jour i (jusqu'au matin de i+1) sans enfants pour Papa, et jour à éviter. */
-  function libres(m, ech) {
-    if (!m.avecEviter) return new Set(); // pas de jours à éviter : rien à calculer
-    ech = ech || echanges(m);
-    const libre = (i) => nuitDe(m, ech, i) === "M" && m.eviterJours.has(i);
-    const out = new Set();
-    for (let i = 0; i < m.cal.n; i++) if (libre(i)) out.add(i);
-    return out;
-  }
-
-  /** Week-ends libres : nuits du vendredi ET du samedi libres (renvoie les samedis). */
-  function weekendsLibres(m, lib) {
-    lib = lib || libres(m);
-    return [...lib].filter((i) => m.cal.jour[i] === 5 && lib.has(i - 1));
-  }
-
-  function blocs(m) {
-    const out = [];
-    for (let i = 0; i < m.cal.n; i++) {
-      const last = out[out.length - 1];
-      if (last && last.o === m.own[i]) { last.b = i; last.len++; }
-      else out.push({ a: i, b: i, o: m.own[i], len: 1 });
-    }
-    for (const bl of out) {
-      let e = 0;
-      const et = ete(m);
-      for (let i = bl.a; i <= bl.b; i++) if (et.has(i)) e++;
-      bl.ete = e * 2 > bl.len;
-    }
-    return out;
-  }
-
-  function nomJour(m, i) {
-    const c = m.cal;
-    return `${JOURS[c.jour[i]]} ${c.quantieme[i]} ${MOIS[c.mois[i]].toLowerCase()}`;
-  }
-
-  /** Alertes : échanges hors règle, blocs trop longs/courts, week-ends perdus. */
-  function alertes(m, opts, refLibres) {
-    opts = Object.assign({}, OPTIONS_DEFAUT, opts || {});
-    const out = [];
-    if (m.own.some((o) => !o)) out.push({ niveau: "erreur", jour: m.own.findIndex((o) => !o), msg: "Jour sans parent attribué." });
-    const ech = echanges(m);
-    for (const [d, e] of ech) {
-      if (!e.ok) out.push({ niveau: "erreur", jour: d,
-        msg: `Échange le ${nomJour(m, d)} hors règle (attendu ${e.attendu}).` });
-    }
-    const bl = blocs(m);
-    bl.forEach((b, k) => {
-      const max = b.ete ? opts.blocMaxEte : opts.blocMax;
-      const qui = b.o === "P" ? "Papa" : "Maman";
-      if (b.len > max) out.push({ niveau: "alerte", jour: b.a,
-        msg: `Bloc ${qui} de ${b.len} jours (${nomJour(m, b.a)} → ${nomJour(m, b.b)}), max ${max}.` });
-      if (b.len < opts.blocMin && k > 0 && k < bl.length - 1) out.push({ niveau: "alerte", jour: b.a,
-        msg: `Bloc ${qui} de ${b.len} jour(s) seulement (${nomJour(m, b.a)} → ${nomJour(m, b.b)}).` });
-    });
-    const lib = libres(m, ech);
-    if (refLibres) {
-      const perdus = [...refLibres].filter((i) => !lib.has(i)).sort((a, b) => a - b);
-      for (let k = 0; k < perdus.length; k++) {
-        let f = k;
-        while (f + 1 < perdus.length && perdus[f + 1] === perdus[f] + 1) f++;
-        const a = perdus[k], b = perdus[f];
-        out.push({ niveau: "alerte", jour: a, msg: a === b
-          ? `Journée et soir libres perdus : ${nomJour(m, a)}.`
-          : `Journées et soirs libres perdus : ${nomJour(m, a)} → ${nomJour(m, b)}.` });
-        k = f;
-      }
-    }
-    const c = compter(m);
-    if (c.ecart > 1) out.push({ niveau: "info", jour: null,
-      msg: `Écart de ${c.ecart} jours (Papa ${c.P} / Maman ${c.M}).` });
-    return out;
-  }
-
-  // ---------- Édition ----------
-
-  /** Bascule le jour d puis la suite du bloc jusqu'au prochain échange. */
-  function basculerDepuis(m, d) {
-    const o = m.own[d], n = autre(o);
-    for (let i = d; i < m.cal.n && m.own[i] === o; i++) m.own[i] = n;
-  }
-
-  function basculerJour(m, d) { m.own[d] = autre(m.own[d]); }
-
-  /** Remplace la garde par une liste de plages ; renvoie les erreurs. */
-  function appliquerPlages(m, liste) {
-    const cal = m.cal, own = new Array(cal.n).fill(null), err = [];
-    liste.forEach((p, k) => {
-      const a = idx(cal, p.du), b = idx(cal, p.au);
-      if (a < 0 || b >= cal.n || a > b) { err.push(`Plage ${k + 1} : dates invalides.`); return; }
-      for (let i = a; i <= b; i++) {
-        if (own[i]) err.push(`Plage ${k + 1} : chevauchement le ${nomJour(m, i)}.`);
-        own[i] = CODE[p.parent];
-      }
-    });
-    const trou = own.findIndex((o) => !o);
-    if (trou >= 0) err.push(`Jour non couvert : ${nomJour(m, trou)}.`);
-    if (!err.length) m.own = own;
-    return err.slice(0, 5);
-  }
-
-  // ---------- Suggestion automatique (programmation dynamique) ----------
-
-  /** Atomes = intervalles entre deux échanges possibles selon les règles. */
-  function atomes(m) {
-    const cal = m.cal, bornes = [];
-    for (let x = 1; x < cal.n; x++) {
-      const r = regleEchange(m, x);
-      if (r) bornes.push({ jour: x, attr: r.attr });
-    }
-    const at = [];
-    for (let k = 0; k <= bornes.length; k++) {
-      const deb = k ? bornes[k - 1] : null, fin = bornes[k] || null;
-      const a = deb ? deb.jour : 0, b = fin ? fin.jour : cal.n - 1;
-      const jours = [], interieur = [];
-      for (let i = a; i <= b; i++) {
-        const surDeb = deb && i === a, surFin = fin && i === b;
-        if (!surDeb && !surFin) { jours.push(i); interieur.push(i); }
-        else if (surDeb && deb.attr === "recoit") jours.push(i);
-        else if (surFin && fin.attr === "rend") jours.push(i);
-      }
-      at.push({ a, b, deb: deb && deb.jour, jours, interieur: new Set(interieur) });
-    }
-    return at;
-  }
-
-  function coutBloc(n, ete, o) {
-    const hi = ete ? o.blocMaxEte : o.blocMax;
-    return Math.pow(Math.max(0, n - hi), 2) * 3 + Math.pow(Math.max(0, o.blocMin - n), 2) * 4;
-  }
-
-  /**
-   * Propose une garde complète selon les règles du modèle.
-   * Contraintes dures : jours verrouillés (gardent leur parent actuel) et,
-   * si demandé, week-ends libres de référence (enfants chez Maman).
-   * Coût : longueur des blocs + équité + bonus week-ends libres.
-   */
-  function suggerer(m, opts, refLibres) {
-    if (refLibres) {
-      const we = new Set();
-      // Nuit d chez Maman <=> jour d+1 chez Maman (et jour d aussi si d+1 est un
-      // jour d'échange attribué à celui qui reçoit). Nuits ven. + sam.
-      const nuitM = (d) => {
-        if (d + 1 < m.cal.n) we.add(d + 1);
-        const r = regleDuJour(m, d + 1);
-        if (r.attr === "recoit" && m.cal.jour[d + 1] === r.jour) we.add(d);
-      };
-      for (const i of weekendsLibres(m, refLibres)) { nuitM(i - 1); nuitM(i); }
-      refLibres = we;
-    }
-    const o = Object.assign({}, OPTIONS_DEFAUT, opts || {});
-    // Sans jours à éviter, on optimise seulement blocs + équité.
-    if (!m.avecEviter) Object.assign(o, { bonusWeekend: 0, poidsAlignementEviter: 0, garderLibres: false });
-    const at = atomes(m), N = at.length, cal = m.cal;
-    const fix = new Array(N).fill(null);
-    at.forEach((t, i) => {
-      if (o.utiliserVerrous) for (const d of t.jours) if (m.verrous.has(d)) fix[i] = m.own[d];
-      if (o.garderLibres && refLibres) for (let d = t.a; d <= t.b; d++) if (refLibres.has(d)) fix[i] = "M";
-    });
-    const et = ete(m);
-    const estEte = at.map((t) => t.jours.length > 0 && t.jours.every((d) => et.has(d)));
-    const aEviter = (d) => m.eviterJours.has(d); // journée à éviter
-    // bonus week-end : dimanche dans [debut de l'atome, fin exclue)
-    function bonus(i, prev, cur) {
-      if (cur !== "M") return 0;
-      const t = at[i];
-      let b = 0;
-      for (let s = t.a; s < t.b || (i === N - 1 && s <= t.b); s++) {
-        if (cal.jour[s] !== 6 || s === 0) continue;
-        const sam = s - 1;
-        if (!aEviter(sam - 1) || !aEviter(sam)) continue; // vendredi et samedi soir
-        const okJour = (d) => {
-          if (t.interieur.has(d)) return true;
-          if (d === t.deb) return prev === "M";
-          return prev === "M" && d < t.a; // samedi dans l'atome précédent
-        };
-        if (okJour(s) && okJour(sam)) b += o.bonusWeekend;
-      }
-      for (const d of t.interieur) if (cal.jour[d] === 5 && !m.eviterJours.has(d)) b -= o.poidsAlignementEviter;
-      return b;
-    }
-    // états : clé "o|run|ete|diff"
-    let couche = new Map([["-|0|0|0", { c: 0, prev: null, o: null }]]);
-    const hist = [];
-    for (let i = 0; i < N; i++) {
-      const suiv = new Map(), n = at[i].jours.length;
-      for (const [k, st] of couche) {
-        const [po, prs, pes, pds] = k.split("|");
-        const pr = +prs, pe = pes === "1", pd = +pds;
-        for (const cur of ["P", "M"]) {
-          if (fix[i] && fix[i] !== cur) continue;
-          const dd = cur === "P" ? n : -n;
-          let c = st.c - bonus(i, po, cur), run, e;
-          if (cur === po) { run = Math.min(pr + n, 40); e = pe || estEte[i]; }
-          else { if (po !== "-") c += coutBloc(pr, pe, o); run = n; e = estEte[i]; }
-          const key = `${cur}|${run}|${e ? 1 : 0}|${pd + dd}`;
-          const ex = suiv.get(key);
-          if (!ex || c < ex.c) suiv.set(key, { c, prev: k, o: cur });
-        }
-      }
-      hist.push(suiv);
-      couche = suiv;
-    }
-    let best = null, bestKey = null;
-    for (const [k, st] of couche) {
-      const [, rs, es, ds] = k.split("|");
-      const c = st.c + coutBloc(+rs, es === "1", o) + o.poidsEquite * Math.abs(+ds);
-      if (!best || c < best) { best = c; bestKey = k; }
-    }
-    if (bestKey === null) return null; // contraintes impossibles
-    const choix = new Array(N);
-    for (let i = N - 1, k = bestKey; i >= 0; i--) { const st = hist[i].get(k); choix[i] = st.o; k = st.prev; }
-    const res = cloner(m);
-    at.forEach((t, i) => { for (const d of t.jours) res.own[d] = choix[i]; });
-    return res;
-  }
-
-  // ---------- Planning vide (point de départ, sans données personnelles) ----------
-
-  // Calendrier scolaire officiel (données publiques) par année civile.
+  const zone = (h27, p27, h28, p28) => [
+    NOEL_2026,
+    { nom: "Hiver", du: h27[0], au: h27[1] }, { nom: "Printemps", du: p27[0], au: p27[1] },
+    ETE_2027, TOUSSAINT_2027, NOEL_2027,
+    { nom: "Hiver", du: h28[0], au: h28[1] }, { nom: "Printemps", du: p28[0], au: p28[1] },
+    ETE_2028,
+  ];
   const VACANCES = {
-    2027: {
-      zone_a: [
-        { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
-        { nom: "Hiver", du: "2027-02-13", au: "2027-02-28" },
-        { nom: "Printemps", du: "2027-04-10", au: "2027-04-25" },
-        { nom: "Été", du: "2027-07-03", au: "2027-09-01" },
-        { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" },
-        { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
-      ],
-      zone_c: [
-        { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
-        { nom: "Hiver", du: "2027-02-06", au: "2027-02-21" },
-        { nom: "Printemps", du: "2027-04-03", au: "2027-04-18" },
-        { nom: "Été", du: "2027-07-03", au: "2027-09-01" },
-        { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" },
-        { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
-      ],
-      zone_b: [
-        { nom: "Noël (fin)", du: "2027-01-01", au: "2027-01-03" },
-        { nom: "Hiver", du: "2027-02-20", au: "2027-03-07" },
-        { nom: "Printemps", du: "2027-04-17", au: "2027-05-02" },
-        { nom: "Été", du: "2027-07-03", au: "2027-09-01" },
-        { nom: "Toussaint", du: "2027-10-23", au: "2027-11-07" },
-        { nom: "Noël", du: "2027-12-18", au: "2027-12-31" },
-      ],
-    },
-    // Calendrier officiel 2027-2028 (« au » = veille de la reprise). Le calendrier
-    // 2028-2029 n'est pas encore publié : Toussaint et Noël 2028 manquent, et la
-    // fin de l'été est arrêtée au 31 août.
-    2028: (() => {
-      const commun = (hiver, printemps) => [
-        { nom: "Noël (fin)", du: "2028-01-01", au: "2028-01-02" },
-        { nom: "Hiver", du: hiver[0], au: hiver[1] },
-        { nom: "Printemps", du: printemps[0], au: printemps[1] },
-        { nom: "Été", du: "2028-07-04", au: "2028-08-31" },
-      ];
-      return {
-        zone_a: commun(["2028-02-19", "2028-03-05"], ["2028-04-22", "2028-05-08"]),
-        zone_b: commun(["2028-02-05", "2028-02-20"], ["2028-04-08", "2028-04-23"]),
-        zone_c: commun(["2028-02-12", "2028-02-27"], ["2028-04-15", "2028-05-01"]),
-      };
-    })(),
+    A: zone(["2027-02-13", "2027-02-28"], ["2027-04-10", "2027-04-25"], ["2028-02-19", "2028-03-05"], ["2028-04-22", "2028-05-08"]),
+    B: zone(["2027-02-20", "2027-03-07"], ["2027-04-17", "2027-05-02"], ["2028-02-05", "2028-02-20"], ["2028-04-08", "2028-04-23"]),
+    C: zone(["2027-02-06", "2027-02-21"], ["2027-04-03", "2027-04-18"], ["2028-02-12", "2028-02-27"], ["2028-04-15", "2028-05-01"]),
   };
+  const ANNEES = [2027, 2028];
 
   /** Jours fériés français (Pâques par l'algorithme de Meeus). */
   function feriesFrance(annee) {
@@ -508,7 +87,7 @@
     const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
     const mois = Math.floor((h + l - 7 * m + 114) / 31), jour = ((h + l - 7 * m + 114) % 31) + 1;
     const paques = Date.UTC(annee, mois - 1, jour);
-    const rel = (n) => new Date(paques + n * 86400000).toISOString().slice(0, 10);
+    const rel = (n) => new Date(paques + n * JOUR_MS).toISOString().slice(0, 10);
     const fixe = (mm, jj) => `${annee}-${mm}-${jj}`;
     return [
       { date: fixe("01", "01"), nom: "Jour de l'an" }, { date: rel(1), nom: "Lundi de Pâques" },
@@ -520,61 +99,167 @@
     ].sort((x, y) => (x.date < y.date ? -1 : 1));
   }
 
-  /** JSON d'un planning neuf : toute l'année chez Papa, à découper ensuite. */
-  function planningVide(annee) {
-    annee = annee || 2027;
+  // ---------- Configuration ----------
+
+  /** Complète et nettoie une configuration de planning (import, stockage). */
+  function normaliser(p) {
+    p = p || {};
+    const d = PLANNING_DEFAUT;
+    const regle = (r, def) => {
+      r = r || {};
+      return {
+        jour: JOURS.includes(r.jour) ? r.jour : def.jour,
+        heure: heureNorm(r.heure || def.heure),
+        compte: r.compte === "recoit" ? "recoit" : "rend",
+      };
+    };
+    const z = String(p.zone || d.zone).toUpperCase();
     return {
-      annee,
-      meta: { description: `Nouveau planning de garde ${annee}, créé avec l'éditeur.`,
-        parents: { papa: "Papa", maman: "Maman" } },
-      regles: ecrireRegles(lireRegles({})),
-      garde_segments: [{ du: `${annee}-01-01`, au: `${annee}-12-31`, parent: "papa" }],
-      vacances: JSON.parse(JSON.stringify(VACANCES[annee] || {})),
-      feries: feriesFrance(annee),
+      nom: String(p.nom || d.nom),
+      zone: ZONES.includes(z) ? z : d.zone,
+      hors: regle(p.hors, d.hors),
+      vacances: regle(p.vacances, d.vacances),
+      semainesPapa: p.semainesPapa === "impaires" ? "impaires" : "paires",
+      petitesVacancesPapa: +p.petitesVacancesPapa === 2 ? 2 : 1,
+      etePapa: p.etePapa === "2-4" ? "2-4" : "1-3",
     };
   }
 
-  // ---------- Édition des jours à éviter ----------
-  // Une période {du, au} = journées pleines à éviter, du jour « du » au jour
-  // « au » inclus (journée et soir).
-
-  function eviterJours(cal, periodes) {
-    const jours = new Array(cal.n).fill(false);
-    for (const i of plagesVersJours(cal, periodes).keys()) jours[i] = true;
-    return jours;
+  function texteRegles(p) {
+    p = normaliser(p);
+    const autre = (n) => (n === 1 ? 2 : 1);
+    const compte = (r) => (r.compte === "rend" ? "au parent qui rend les enfants" : "au parent qui les reçoit");
+    const q = p.etePapa === "1-3" ? ["1 et 3", "2 et 4"] : ["2 et 4", "1 et 3"];
+    return [
+      `Hors vacances : échange le ${p.hors.jour} à ${p.hors.heure} ; Papa a les semaines ${p.semainesPapa}, ` +
+        `Maman les semaines ${p.semainesPapa === "paires" ? "impaires" : "paires"} (n° ISO de la semaine de l'échange).`,
+      `Vacances (zone ${p.zone}) : échange le ${p.vacances.jour} à ${p.vacances.heure} ; petites vacances : Papa a la ` +
+        `${p.petitesVacancesPapa === 1 ? "1re" : "2e"} semaine les années paires, la ${autre(p.petitesVacancesPapa) === 1 ? "1re" : "2e"} ` +
+        `les années impaires ; été : Papa a les quinzaines ${q[0]} les années paires, ${q[1]} les années impaires ` +
+        "(année du début des vacances).",
+      p.hors.compte === p.vacances.compte
+        ? `Le jour d'échange compte ${compte(p.hors)}. Un échange un jour férié est reporté au lendemain.`
+        : `Le jour d'échange compte ${compte(p.hors)} hors vacances, ${compte(p.vacances)} en vacances. ` +
+          "Un échange un jour férié est reporté au lendemain.",
+    ];
   }
 
-  /** Jours -> périodes {du, au} (jours consécutifs regroupés). */
-  function eviterDepuisJours(cal, jours) {
-    const out = [];
-    for (let a = 0; a < cal.n; a++) {
-      if (!jours[a]) continue;
-      let b = a;
-      while (b + 1 < cal.n && jours[b + 1]) b++;
-      out.push({ du: cal.iso[a], au: cal.iso[b] });
-      a = b;
+  // ---------- Calcul ----------
+
+  /**
+   * Planning de l'année `annee` selon la configuration `p`.
+   * Renvoie { annee, jours: [{iso, js, quantieme, mois, parent, echange, ferie}],
+   *           total: {P, M, ecart, mois}, blocs, incomplet }.
+   *
+   * Le temps est mesuré en minutes (jour * 1440 + heure). Qui a les enfants à
+   * l'instant t : le bloc de vacances qui contient t, sinon la semaine hors
+   * vacances ouverte par le dernier échange hors vacances avant t (parité ISO).
+   */
+  function calculer(p, annee) {
+    p = normaliser(p);
+    const debut = versJour(`${annee}-01-01`), fin = versJour(`${annee}-12-31`);
+    const de = debut - 70, a = fin + 70; // marge : vacances et semaines à cheval sur l'année
+
+    const feries = new Map();
+    for (const y of [annee - 1, annee, annee + 1]) for (const f of feriesFrance(y)) feries.set(versJour(f.date), f.nom);
+    const reporter = (j) => { while (feries.has(j)) j++; return j; }; // férié : reporté au lendemain
+
+    const regle = (r) => ({ jour: JOURS.indexOf(r.jour), min: minutes(r.heure), heure: r.heure, compte: r.compte });
+    const hors = regle(p.hors), vac = regle(p.vacances);
+    const instant = (j, r) => reporter(j) * 1440 + r.min;
+
+    // Blocs de vacances : semaines (quinzaines l'été) d'un échange vacances au
+    // suivant, à partir du premier jour d'échange vacances dans les vacances.
+    const blocs = [];
+    for (const v of VACANCES[p.zone]) {
+      const du = versJour(v.du), au = versJour(v.au);
+      if (au < de || du > a) continue;
+      const ete = v.nom === "Été", longueur = ete ? 14 : 7, nbMax = ete ? 4 : 2;
+      const paire = +v.du.slice(0, 4) % 2 === 0;
+      let s = du;
+      while (jourSemaine(s) !== vac.jour) s++;
+      // un bloc peut se terminer au plus tard le jour de la reprise (au + 1)
+      for (let k = 0; k < nbMax && s + longueur <= au + 1; k++, s += longueur) {
+        const papaAnneePaire = ete ? (k % 2 === 0) === (p.etePapa === "1-3") : k + 1 === p.petitesVacancesPapa;
+        blocs.push({
+          vacances: `${v.nom} ${v.du.slice(0, 4)}`, numero: k + 1, ete,
+          debut: instant(s, vac), fin: instant(s + longueur, vac),
+          parent: papaAnneePaire === paire ? "P" : "M",
+        });
+      }
+    }
+
+    // Semaines hors vacances : ouvertes par chaque échange hors vacances.
+    const semaines = [];
+    for (let j = de; j <= a; j++) {
+      if (jourSemaine(j) !== hors.jour) continue;
+      const paire = semaineIso(j) % 2 === 0;
+      semaines.push({ t: instant(j, hors), parent: paire === (p.semainesPapa === "paires") ? "P" : "M" });
+    }
+
+    function parentA(t) {
+      for (const b of blocs) if (b.debut <= t && t < b.fin) return b.parent;
+      let parent = semaines[0].parent === "P" ? "M" : "P";
+      for (const s of semaines) { if (s.t > t) break; parent = s.parent; }
+      return parent;
+    }
+
+    // Échanges : instants candidats où le parent change.
+    const candidats = new Map();
+    for (const s of semaines) candidats.set(s.t, hors);
+    for (const b of blocs) { candidats.set(b.debut, vac); candidats.set(b.fin, vac); }
+    const echanges = new Map(); // jour -> [{rend, recoit, heure, compte}]
+    for (const t of [...candidats.keys()].sort((x, y) => x - y)) {
+      const avant = parentA(t - 1), apres = parentA(t);
+      if (avant === apres) continue;
+      const r = candidats.get(t), j = Math.floor(t / 1440);
+      if (!echanges.has(j)) echanges.set(j, []);
+      echanges.get(j).push({ rend: avant, recoit: apres, heure: r.heure, compte: r.compte });
+    }
+
+    const jours = [], total = { P: 0, M: 0, mois: MOIS.map(() => ({ P: 0, M: 0 })) };
+    for (let j = debut; j <= fin; j++) {
+      const iso = versIso(j), liste = echanges.get(j);
+      let parent, echange = null;
+      if (liste) {
+        const e0 = liste[0], e1 = liste[liste.length - 1];
+        echange = { rend: e0.rend, recoit: e1.recoit, heure: e0.heure, compte: e0.compte };
+        parent = e0.compte === "rend" ? e0.rend : e1.recoit;
+        if (echange.rend === echange.recoit) echange = null; // aller-retour dans la journée
+      } else parent = parentA(j * 1440);
+      const mois = +iso.slice(5, 7) - 1;
+      total[parent]++; total.mois[mois][parent]++;
+      jours.push({ iso, js: jourSemaine(j), quantieme: +iso.slice(8), mois, parent, echange, ferie: feries.get(j) || null });
+    }
+    total.ecart = Math.abs(total.P - total.M);
+
+    const fmt = (t) => {
+      const j = Math.floor(t / 1440), h = heureNorm(`${Math.floor((t % 1440) / 60)}h${String(t % 60).padStart(2, "0")}`);
+      return { iso: versIso(j), js: jourSemaine(j), heure: h };
+    };
+    const blocsAnnee = blocs
+      .filter((b) => b.fin > debut * 1440 && b.debut < (fin + 1) * 1440)
+      .map((b) => Object.assign({}, b, { du: fmt(b.debut), au: fmt(b.fin) }));
+
+    return { annee, jours, total, blocs: blocsAnnee, incomplet: fin > versJour(CALENDRIER_CONNU_JUSQUA) };
+  }
+
+  /** Jours (iso) de vacances de la zone z pendant l'année. */
+  function joursVacances(z, annee) {
+    const out = new Map();
+    for (const v of VACANCES[z]) {
+      for (let j = versJour(v.du); j <= versJour(v.au); j++) {
+        const iso = versIso(j);
+        if (iso.startsWith(String(annee))) out.set(iso, v.nom);
+      }
     }
     return out;
   }
 
-  /** Met les jours a..b à `valeur` (jour à éviter ou non). */
-  function eviterBasculer(annee, periodes, a, b, valeur) {
-    const cal = calendrier(annee), jours = eviterJours(cal, periodes);
-    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) jours[i] = valeur;
-    return eviterDepuisJours(cal, jours);
-  }
-
-  /** Remet une liste de périodes (éditée à la main) en ordre : tri, fusion, année. */
-  function eviterNormaliser(annee, periodes) {
-    const cal = calendrier(annee);
-    return eviterDepuisJours(cal, eviterJours(cal, periodes));
-  }
-
   const api = {
-    planningVide, feriesFrance, ANNEES: Object.keys(VACANCES).map(Number), ZONES, ZONE_DEFAUT, vacances, ete, zonesIndicatives, eviterBasculer, eviterNormaliser,
-    JOURS, MOIS, PARENT, OPTIONS_DEFAUT, calendrier, charger, cloner, plages, exporter,
-    lireRegles, ecrireRegles, heureNorm, echanges, compter, nuitDe, libres, weekendsLibres, blocs, alertes,
-    basculerDepuis, basculerJour, appliquerPlages, atomes, suggerer, nomJour, regleDuJour,
+    JOURS, MOIS, ZONES, NOM, ANNEES, VACANCES, PLANNING_DEFAUT, CALENDRIER_CONNU_JUSQUA,
+    versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance,
+    normaliser, texteRegles, calculer, joursVacances,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else global.Garde = api;

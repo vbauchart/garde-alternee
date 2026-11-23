@@ -1,7 +1,3 @@
-.venv/
-__pycache__/
-*.pyc
-
-# Données privées : dépôt séparé vbauchart/garde-alternee-data cloné dans data/
+# Exports personnels (configurations, PDF) : dépôt privé séparé cloné dans data/
 data/
 *.pdf
