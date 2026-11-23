@@ -56,6 +56,8 @@
 
   // ---------- Calendrier scolaire officiel (données publiques) ----------
   // « du » = premier jour des vacances (après la classe), « au » = veille de la reprise.
+  // Données intégrées ci-dessous (secours hors ligne), remplacées dans le
+  // navigateur par celles de data.gouv.fr (chargerVacances).
 
   const NOEL_2026 = { nom: "Noël", du: "2026-12-19", au: "2027-01-03" };
   const ETE_2027 = { nom: "Été", du: "2027-07-03", au: "2027-09-01" };
@@ -64,7 +66,6 @@
   // Calendrier 2028-2029 pas encore publié : la fin de l'été 2028 est arrêtée au
   // 31 août, Toussaint et Noël 2028 manquent.
   const ETE_2028 = { nom: "Été", du: "2028-07-04", au: "2028-08-31" };
-  const CALENDRIER_CONNU_JUSQUA = "2028-08-31";
 
   const zone = (h27, p27, h28, p28) => [
     NOEL_2026,
@@ -73,12 +74,78 @@
     { nom: "Hiver", du: h28[0], au: h28[1] }, { nom: "Printemps", du: p28[0], au: p28[1] },
     ETE_2028,
   ];
-  const VACANCES = {
+  let VACANCES = {
     A: zone(["2027-02-13", "2027-02-28"], ["2027-04-10", "2027-04-25"], ["2028-02-19", "2028-03-05"], ["2028-04-22", "2028-05-08"]),
     B: zone(["2027-02-20", "2027-03-07"], ["2027-04-17", "2027-05-02"], ["2028-02-05", "2028-02-20"], ["2028-04-08", "2028-04-23"]),
     C: zone(["2027-02-06", "2027-02-21"], ["2027-04-03", "2027-04-18"], ["2028-02-12", "2028-02-27"], ["2028-04-15", "2028-05-01"]),
   };
-  const ANNEES = [2027, 2028];
+  let ANNEES = [2027, 2028];
+  let CALENDRIER_CONNU_JUSQUA = "2028-08-31";
+  let SOURCE_VACANCES = { type: "integre", date: null }; // "integre" ou "data.gouv" (date de téléchargement)
+
+  /** Requête de l'API Opendatasoft du ministère (jeu « Le calendrier scolaire » de data.gouv.fr). */
+  function urlCalendrierOfficiel(depuisAnnee) {
+    const q = new URLSearchParams({
+      select: "description,start_date,end_date,zones,population",
+      where: `zones in ("Zone A","Zone B","Zone C") and start_date>=date'${depuisAnnee}-08-01'`,
+      group_by: "description,start_date,end_date,zones,population",
+      order_by: "start_date",
+    });
+    return "https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/exports/json?" + q;
+  }
+
+  /**
+   * Lignes de l'API -> { vacances: {A,B,C}, annees, connuJusqua }, ou null si
+   * les données sont inutilisables. Les dates sont en UTC (minuit heure de
+   * Paris) : +12 h donne le bon jour quel que soit le décalage. end_date est le
+   * jour de la reprise. Les ponts (Ascension) et les dates des enseignants sont
+   * ignorés ; un été dont seul le début est publié est arrêté au 31 août.
+   * annees : années (>= anneeMin) couvertes, marge de 70 jours avant le 1er janvier.
+   */
+  function lireCalendrierOfficiel(lignes, anneeMin) {
+    if (!Array.isArray(lignes)) return null;
+    const NOMS = [[/toussaint/i, "Toussaint"], [/no[eë]l/i, "Noël"], [/hiver/i, "Hiver"],
+      [/printemps/i, "Printemps"], [/[ée]t[ée]/i, "Été"]];
+    const jourParis = (s) => (Date.parse(s) ? versJour(new Date(Date.parse(s) + 43200000).toISOString().slice(0, 10)) : NaN);
+    const parZone = { A: new Map(), B: new Map(), C: new Map() };
+    for (const l of lignes) {
+      const z = String((l && l.zones) || "").replace(/^Zone\s+/i, "");
+      if (!parZone[z] || /enseignant/i.test(l.population || "") || /pont/i.test(l.description || "")) continue;
+      const n = NOMS.find(([re]) => re.test(l.description || ""));
+      const du = jourParis(l.start_date), fin = jourParis(l.end_date);
+      if (!n || !Number.isFinite(du)) continue;
+      const nom = n[1], iso = versIso(du);
+      let au = Number.isFinite(fin) && fin > du ? fin - 1 : NaN;
+      if (!Number.isFinite(au)) {
+        if (nom !== "Été") continue;
+        au = versJour(`${iso.slice(0, 4)}-08-31`); // seul le début de l'été est connu
+      }
+      const cle = `${nom} ${iso}`, deja = parZone[z].get(cle);
+      if (!deja || versJour(deja.au) < au) parZone[z].set(cle, { nom, du: iso, au: versIso(au) });
+    }
+    const vacances = {};
+    for (const z of ZONES) {
+      vacances[z] = [...parZone[z].values()].sort((x, y) => (x.du < y.du ? -1 : 1));
+      if (!vacances[z].length) return null;
+    }
+    const premier = Math.max(...ZONES.map((z) => versJour(vacances[z][0].du)));
+    const connuJusqua = versIso(Math.min(...ZONES.map((z) => Math.max(...vacances[z].map((v) => versJour(v.au))))));
+    const annees = [];
+    for (let y = anneeMin || 0; y <= +connuJusqua.slice(0, 4); y++) {
+      if (premier <= versJour(`${y}-01-01`) - 70) annees.push(y);
+    }
+    if (!annees.length) return null;
+    return { vacances, annees, connuJusqua };
+  }
+
+  /** Remplace le calendrier intégré par celui de data.gouv.fr. Renvoie false si les données sont inutilisables. */
+  function chargerVacances(lignes, date, anneeMin) {
+    const c = lireCalendrierOfficiel(lignes, anneeMin);
+    if (!c) return false;
+    VACANCES = c.vacances; ANNEES = c.annees; CALENDRIER_CONNU_JUSQUA = c.connuJusqua;
+    SOURCE_VACANCES = { type: "data.gouv", date: date || null };
+    return true;
+  }
 
   /** Jours fériés français (Pâques par l'algorithme de Meeus). */
   function feriesFrance(annee) {
@@ -345,10 +412,18 @@
   }
 
   const api = {
-    JOURS, MOIS, ZONES, NOM, ANNEES, VACANCES, PLANNING_DEFAUT, CALENDRIER_CONNU_JUSQUA, COURT_MIN,
+    JOURS, MOIS, ZONES, NOM, PLANNING_DEFAUT, COURT_MIN,
     versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance,
     normaliser, texteRegles, calculer, joursVacances, periodes, icalendar,
+    urlCalendrierOfficiel, lireCalendrierOfficiel, chargerVacances,
   };
+  // calendrier scolaire : remplaçable par chargerVacances, donc lu à chaque accès
+  Object.defineProperties(api, {
+    VACANCES: { get: () => VACANCES, enumerable: true },
+    ANNEES: { get: () => ANNEES, enumerable: true },
+    CALENDRIER_CONNU_JUSQUA: { get: () => CALENDRIER_CONNU_JUSQUA, enumerable: true },
+    SOURCE_VACANCES: { get: () => SOURCE_VACANCES, enumerable: true },
+  });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else global.Garde = api;
 })(typeof window !== "undefined" ? window : globalThis);

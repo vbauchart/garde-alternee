@@ -14,8 +14,10 @@ GitHub Pages).
 - **Planning 2** (facultatif) : une variante, réglée de la même façon et
   affichée à côté du planning 1 dans le calendrier (jours différents marqués
   « • », totaux comparés).
-- **Calendrier** : l'année choisie (2027 ou 2028), jour par jour, avec les
-  échanges, les vacances des trois zones et les jours fériés.
+- **Calendrier** : l'année choisie, jour par jour, avec les échanges, les
+  vacances des trois zones et les jours fériés. Les vacances sont
+  téléchargées depuis data.gouv.fr à l'ouverture (calendrier intégré en
+  secours hors ligne) ; les années proposées sont celles qu'elles couvrent.
 - **Télécharger le PDF** : 2 pages A4 paysage (calendrier, règles, totaux,
   signatures).
 - **Exporter l'agenda (ICS)…** : choisir le planning (1 ou 2), le parent et
@@ -31,6 +33,7 @@ GitHub Pages).
 ```
 outil/editeur.html      Interface (calendrier, réglages, export)
 outil/core.js           Calcul du planning par les règles + calendrier scolaire
+                        (intégré, ou chargé depuis data.gouv.fr)
 outil/impression.js     Mise en page du PDF
 outil/jspdf.umd.min.js  Bibliothèque jsPDF
 CONTRAINTES.md          Règles du planning
