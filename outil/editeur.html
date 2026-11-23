@@ -30,6 +30,7 @@
   button.primaire { background: var(--accent); color: #fff; border-color: var(--accent); }
   select, input[type=text] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
   .espace { flex: 1; }
+  #source { color: var(--muted); font-size: 12px; }
   main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px; align-items: start; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { position: static !important; max-height: none !important; } }
   aside { position: sticky; top: 64px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 80px); overflow: auto; }
@@ -98,6 +99,7 @@
 <header>
   <h1>Planning de garde</h1>
   <label>Année <select id="annee" title="Année affichée (vacances scolaires connues)"></select></label>
+  <span id="source"></span>
   <span class="espace"></span>
   <button id="btnImporter" title="Ouvrir une configuration exportée (garde_AAAA.json)">Ouvrir…</button>
   <input type="file" id="fichier" accept=".json,application/json" class="cache">
@@ -152,8 +154,52 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const LMMJVSD = "LMMJVSD";
 
+// ---------------- Calendrier scolaire (data.gouv.fr) ----------------
+// Le dernier calendrier téléchargé est gardé dans le navigateur et utilisé dès
+// l'ouverture ; il est rafraîchi à chaque chargement. Sans réseau ni cache, le
+// calendrier intégré à core.js sert de secours.
+
+const CLE_VACANCES = "garde-alternee.vacances.v1";
+const ANNEE_MIN = new Date().getFullYear(); // pas d'années passées dans le choix
+let vacancesInjoignables = false;
+
+function vacancesEnCache() {
+  try {
+    const o = JSON.parse(localStorage.getItem(CLE_VACANCES) || "null");
+    if (o) G.chargerVacances(o.lignes, o.date, ANNEE_MIN);
+  } catch (e) { /* cache illisible : calendrier intégré */ }
+}
+async function telechargerVacances() {
+  try {
+    const opts = typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(15000) } : {};
+    const rep = await fetch(G.urlCalendrierOfficiel(ANNEE_MIN - 1), opts);
+    if (!rep.ok) throw new Error(`HTTP ${rep.status}`);
+    const lignes = await rep.json(), date = new Date().toISOString().slice(0, 10);
+    if (!G.chargerVacances(lignes, date, ANNEE_MIN)) throw new Error("données inutilisables");
+    try { localStorage.setItem(CLE_VACANCES, JSON.stringify({ date, lignes })); } catch (e) { /* stockage indisponible */ }
+    if (!G.ANNEES.includes(etat.annee)) etat.annee = anneeParDefaut();
+    rendre();
+  } catch (e) {
+    console.warn("Calendrier scolaire data.gouv.fr indisponible :", e.message);
+    vacancesInjoignables = true;
+    rendre();
+  }
+}
+/** L'année prochaine si elle est connue (on prépare le planning à l'avance), sinon la première connue. */
+const anneeParDefaut = () => (G.ANNEES.includes(ANNEE_MIN + 1) ? ANNEE_MIN + 1 : G.ANNEES[0]);
+const fmtIso = (iso) => iso.split("-").reverse().join("/");
+/** [texte court à côté du sélecteur d'année, infobulle] */
+const texteSource = () => (G.SOURCE_VACANCES.type === "data.gouv"
+  ? [`data.gouv.fr, ${fmtIso(G.SOURCE_VACANCES.date)}`,
+    `Calendrier scolaire officiel téléchargé depuis data.gouv.fr le ${fmtIso(G.SOURCE_VACANCES.date)}, connu jusqu'au ${fmtIso(G.CALENDRIER_CONNU_JUSQUA)}.`]
+  : [`calendrier intégré${vacancesInjoignables ? " (hors ligne)" : ""}`,
+    `Calendrier scolaire intégré à l'outil, connu jusqu'au ${fmtIso(G.CALENDRIER_CONNU_JUSQUA)}` +
+    (vacancesInjoignables ? " : data.gouv.fr injoignable." : " : téléchargement depuis data.gouv.fr en cours…")]);
+
+vacancesEnCache();
+
 // plannings[0] : planning 1 ; plannings[1] : planning 2 (facultatif, variante comparée)
-const etat = { annee: G.ANNEES[0], plannings: [G.normaliser(G.PLANNING_DEFAUT)], onglet: "calendrier" };
+const etat = { annee: anneeParDefaut(), plannings: [G.normaliser(G.PLANNING_DEFAUT)], onglet: "calendrier" };
 
 // ---------------- Stockage ----------------
 
@@ -198,6 +244,7 @@ const fmtDate = (d) => `${G.JOURS[d.js].slice(0, 3)}. ${d.iso.slice(8)}/${d.iso.
 function rendre() {
   const res = etat.plannings.map((p) => G.calculer(p, etat.annee));
   $("#annee").innerHTML = G.ANNEES.map((a) => `<option value="${a}"${a === etat.annee ? " selected" : ""}>${a}</option>`).join("");
+  [$("#source").textContent, $("#source").title] = texteSource();
   document.querySelectorAll(".onglets button").forEach((b) => b.classList.toggle("actif", b.dataset.onglet === etat.onglet));
   $("#onglet-calendrier").classList.toggle("cache", etat.onglet !== "calendrier");
   $("#onglet-planning").classList.toggle("cache", etat.onglet === "calendrier");
@@ -420,6 +467,7 @@ window.addEventListener("drop", (ev) => { ev.preventDefault(); const f = [...ev.
 
 restaurer();
 rendre();
+telechargerVacances();
 </script>
 </body>
 </html>
