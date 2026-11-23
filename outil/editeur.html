@@ -80,6 +80,7 @@
   legend { font-weight: 600; padding: 0 4px; }
   label.champ { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; }
   label.champ input[type=text] { min-width: 0; }
+  .encart { background: var(--we); color: var(--muted); font-size: 13px; border-radius: 3px; padding: 4px 8px; margin: 0 0 8px; }
   table.blocs { border-collapse: collapse; width: 100%; max-width: 960px; background: var(--panel); margin-top: 8px; font-size: 13px; }
   table.blocs th, table.blocs td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
   table.blocs td.P { box-shadow: inset 5px 0 0 var(--papa); padding-left: 10px; }
@@ -343,6 +344,12 @@ function rendreCalendrier(res) {
   $("#calendrier").innerHTML = html;
 }
 
+// Effet du partage des vacances pour l'année affichée (le réglage porte sur les années paires).
+const parite = (y) => (y % 2 === 0 ? "paire" : "impaire");
+const semainePapa = (p, y) => ((y % 2 === 0) === (p.petitesVacancesPapa === 1) ? "1res" : "2es");
+const encartPetites = (p, y) => `En ${y} (${parite(y)}), Papa aura les ${semainePapa(p, y)} semaines`;
+const encartEte = (p, y) =>
+  `En ${y} (${parite(y)}), Papa aura les quinzaines ${(y % 2 === 0) === (p.etePapa === "1-3") ? "1 et 3" : "2 et 4"}`;
 const opt = (v, t, sel) => `<option value="${v}"${String(v) === String(sel) ? " selected" : ""}>${t}</option>`;
 function champsEchange(cle, r) {
   return `
@@ -382,8 +389,10 @@ function rendrePlanning(k, r) {
       <fieldset><legend>Partage des vacances</legend>
         <label class="champ">Petites vacances : les années paires, Papa a la
           <select data-champ="petitesVacancesPapa">${opt(1, "1re semaine", p.petitesVacancesPapa)}${opt(2, "2e semaine", p.petitesVacancesPapa)}</select></label>
+        <p class="encart">${encartPetites(p, etat.annee)}</p>
         <label class="champ">Été : les années paires, Papa a les quinzaines
           <select data-champ="etePapa">${opt("1-3", "1 et 3", p.etePapa)}${opt("2-4", "2 et 4", p.etePapa)}</select></label>
+        <p class="encart">${encartEte(p, etat.annee)}</p>
         <p class="aide">C'est l'inverse les années impaires. L'année est celle du début des vacances (Noël 2026-2027 : année paire).
           Toussaint, Noël, hiver et printemps : 2 semaines ; été : jusqu'à 4 quinzaines.</p>
       </fieldset>
