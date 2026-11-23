@@ -256,10 +256,74 @@
     return out;
   }
 
+  // ---------- Export agenda (iCalendar) ----------
+
+  /**
+   * Périodes de garde du parent ("P" ou "M") pendant l'année, d'un échange au
+   * suivant : [{ du: {iso, min}, au: {iso, min} }] (min = minutes depuis minuit,
+   * heure de Paris). Les périodes à cheval sur l'année sont coupées au 1er
+   * janvier 0h et au 1er janvier suivant 0h.
+   */
+  function periodes(p, annee, parent) {
+    const jours = calculer(p, annee).jours, out = [];
+    const j0 = jours[0];
+    let du = (j0.echange ? j0.echange.rend : j0.parent) === parent ? { iso: j0.iso, min: 0 } : null;
+    for (const d of jours) {
+      const e = d.echange;
+      if (!e) continue;
+      const min = minutes(e.heure);
+      if (e.rend === parent && du) { out.push({ du, au: { iso: d.iso, min } }); du = null; }
+      if (e.recoit === parent) du = { iso: d.iso, min };
+    }
+    if (du) out.push({ du, au: { iso: versIso(versJour(jours[jours.length - 1].iso) + 1), min: 0 } });
+    return out;
+  }
+
+  /** Fichier .ics (texte CRLF) des périodes de garde du parent, heure de Paris. */
+  function icalendar(p, annee, parent, maintenant) {
+    p = normaliser(p);
+    const dt = (x) => `${x.iso.replace(/-/g, "")}T${String(Math.floor(x.min / 60)).padStart(2, "0")}${String(x.min % 60).padStart(2, "0")}00`;
+    const texte = (s) => String(s).replace(/[\\;,]/g, (c) => "\\" + c).replace(/\n/g, "\\n");
+    const plier = (l) => { // lignes de 75 octets au plus (RFC 5545)
+      const out = []; let cur = "", n = 0;
+      for (const c of l) {
+        const t = new TextEncoder().encode(c).length;
+        if (n + t > (out.length ? 74 : 75)) { out.push(cur); cur = ""; n = 0; }
+        cur += c; n += t;
+      }
+      out.push(cur);
+      return out.join("\r\n ");
+    };
+    const fr = (x) => `${JOURS[jourSemaine(versJour(x.iso))]} ${x.iso.split("-").reverse().join("/")} ` +
+      heureNorm(`${Math.floor(x.min / 60)}h${String(x.min % 60).padStart(2, "0")}`);
+    const stamp = (maintenant || new Date()).toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+    const nom = NOM[parent], uidBase = `${parent}-${p.nom}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const lignes = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//garde-alternee//planning//FR", "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH", `X-WR-CALNAME:${texte(`Garde ${nom} ${annee}`)}`, "X-WR-TIMEZONE:Europe/Paris",
+      "BEGIN:VTIMEZONE", "TZID:Europe/Paris",
+      "BEGIN:DAYLIGHT", "TZOFFSETFROM:+0100", "TZOFFSETTO:+0200", "TZNAME:CEST",
+      "DTSTART:19700329T020000", "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU", "END:DAYLIGHT",
+      "BEGIN:STANDARD", "TZOFFSETFROM:+0200", "TZOFFSETTO:+0100", "TZNAME:CET",
+      "DTSTART:19701025T030000", "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU", "END:STANDARD",
+      "END:VTIMEZONE",
+    ];
+    for (const x of periodes(p, annee, parent)) {
+      lignes.push("BEGIN:VEVENT",
+        `UID:${uidBase}-${dt(x.du)}@garde-alternee`, `DTSTAMP:${stamp}`,
+        `DTSTART;TZID=Europe/Paris:${dt(x.du)}`, `DTEND;TZID=Europe/Paris:${dt(x.au)}`,
+        `SUMMARY:${texte(`Enfants chez ${nom}`)}`,
+        `DESCRIPTION:${texte(`${p.nom} (zone ${p.zone}) : du ${fr(x.du)} au ${fr(x.au)}.`)}`,
+        "TRANSP:TRANSPARENT", "END:VEVENT");
+    }
+    lignes.push("END:VCALENDAR");
+    return lignes.map(plier).join("\r\n") + "\r\n";
+  }
+
   const api = {
     JOURS, MOIS, ZONES, NOM, ANNEES, VACANCES, PLANNING_DEFAUT, CALENDRIER_CONNU_JUSQUA,
     versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance,
-    normaliser, texteRegles, calculer, joursVacances,
+    normaliser, texteRegles, calculer, joursVacances, periodes, icalendar,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else global.Garde = api;

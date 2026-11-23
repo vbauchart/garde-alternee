@@ -18,6 +18,10 @@ GitHub Pages).
   échanges, les vacances des trois zones et les jours fériés.
 - **Télécharger le PDF** : 2 pages A4 paysage (calendrier, règles, totaux,
   signatures).
+- **Exporter l'agenda (ICS)…** : choisir le planning (1 ou 2), le parent et
+  l'année ; télécharge `garde_<parent>_<année>.ics`, avec un événement
+  « Enfants chez … » par période de garde, d'un échange au suivant (heure de
+  Paris). Les périodes à cheval sur deux années sont coupées au 1er janvier.
 - **Exporter le JSON / Ouvrir…** : sauvegarder ou recharger la configuration
   (`garde_<année>.json`). Les réglages sont aussi gardés dans le navigateur ;
   « Remettre à zéro » les efface.
