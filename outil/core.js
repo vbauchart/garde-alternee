@@ -19,6 +19,7 @@
   const NOM = { P: "Papa", M: "Maman" };
   const JOUR_MS = 86400000;
   const COURT_MIN = 3; // une période chez un parent de moins de 3 jours est signalée
+  const FUSION_MAX = 3; // option : une période de 3 jours ou moins est rendue à l'autre parent
 
   const PLANNING_DEFAUT = {
     nom: "Planning 1",
@@ -28,6 +29,7 @@
     semainesPapa: "paires",       // semaines ISO (de l'échange qui ouvre la semaine) de Papa
     petitesVacancesPapa: 1,       // semaine de Papa aux petites vacances, années paires
     etePapa: "1-3",               // quinzaines de Papa l'été, années paires ("1-3" ou "2-4")
+    fusionCourtes: true,          // rendre les périodes de FUSION_MAX jours ou moins à l'autre parent
   };
 
   // ---------- Dates : un jour = nombre de jours depuis le 1970-01-01 (UTC) ----------
@@ -190,6 +192,7 @@
       semainesPapa: p.semainesPapa === "impaires" ? "impaires" : "paires",
       petitesVacancesPapa: +p.petitesVacancesPapa === 2 ? 2 : 1,
       etePapa: p.etePapa === "2-4" ? "2-4" : "1-3",
+      fusionCourtes: p.fusionCourtes === undefined ? d.fusionCourtes : p.fusionCourtes === true || p.fusionCourtes === "true",
     };
   }
 
@@ -205,6 +208,8 @@
         `${p.petitesVacancesPapa === 1 ? "1re" : "2e"} semaine les années paires, la ${autre(p.petitesVacancesPapa) === 1 ? "1re" : "2e"} ` +
         `les années impaires ; été : Papa a les quinzaines ${q[0]} les années paires, ${q[1]} les années impaires ` +
         "(année du début des vacances).",
+      ...(p.fusionCourtes ? [`Une période de ${FUSION_MAX} jours ou moins chez un parent, entre deux périodes de l'autre, ` +
+        "est rendue à l'autre parent (les deux échanges qui l'encadrent sont supprimés)."] : []),
       p.hors.compte === p.vacances.compte
         ? `Le jour d'échange compte ${compte(p.hors)}. Un échange un jour férié est reporté au lendemain.`
         : `Le jour d'échange compte ${compte(p.hors)} hors vacances, ${compte(p.vacances)} en vacances. ` +
@@ -274,44 +279,83 @@
       return parent;
     }
 
-    // Échanges : instants candidats où le parent change.
+    // Transitions : instants candidats où le parent change, dans l'ordre.
     const candidats = new Map();
     for (const s of semaines) candidats.set(s.t, hors);
     for (const b of blocs) { candidats.set(b.debut, vac); candidats.set(b.fin, vac); }
-    const echanges = new Map(); // jour -> [{rend, recoit, heure, compte}]
+    const trans = [];
     for (const t of [...candidats.keys()].sort((x, y) => x - y)) {
+      if (t < de * 1440) continue;
       const avant = parentA(t - 1), apres = parentA(t);
       if (avant === apres) continue;
-      const r = candidats.get(t), j = Math.floor(t / 1440);
-      if (!echanges.has(j)) echanges.set(j, []);
-      echanges.get(j).push({ rend: avant, recoit: apres, heure: r.heure, compte: r.compte });
+      const r = candidats.get(t);
+      trans.push({ t, rend: avant, recoit: apres, heure: r.heure, compte: r.compte });
     }
+    const parent0 = parentA(de * 1440);
 
-    // Parent compté chaque jour, marge comprise (pour les périodes à cheval sur l'année).
-    const parJour = new Map(), echJour = new Map();
-    for (let j = de; j <= a; j++) {
-      const liste = echanges.get(j);
-      let parent, echange = null;
-      if (liste) {
-        const e0 = liste[0], e1 = liste[liste.length - 1];
-        echange = { rend: e0.rend, recoit: e1.recoit, heure: e0.heure, compte: e0.compte };
-        parent = e0.compte === "rend" ? e0.rend : e1.recoit;
-        if (echange.rend === echange.recoit) echange = null; // aller-retour dans la journée
-      } else parent = parentA(j * 1440);
-      parJour.set(j, parent); echJour.set(j, echange);
-    }
-
-    // Périodes courtes : moins de COURT_MIN jours comptés d'affilée chez le même
-    // parent (la première et la dernière période de la marge, tronquées, sont ignorées).
-    const courts = new Set(), courtes = [];
-    for (let j = de, run = de; j <= a; j++) {
-      if (j < a && parJour.get(j + 1) === parJour.get(j)) continue;
-      const n = j - run + 1;
-      if (run > de && j < a && n < COURT_MIN && j >= debut && run <= fin) {
-        for (let x = run; x <= j; x++) courts.add(x);
-        courtes.push({ parent: parJour.get(j), du: versIso(run), au: versIso(j), jours: n });
+    // Parent compté chaque jour (marge comprise) et échange du jour, d'après les transitions.
+    function compter() {
+      const parJour = new Map(), echJour = new Map();
+      let k = 0, courant = parent0;
+      for (let j = de; j <= a; j++) {
+        const liste = [];
+        while (k < trans.length && Math.floor(trans[k].t / 1440) === j) liste.push(trans[k++]);
+        let parent = courant, echange = null;
+        if (liste.length) {
+          const e0 = liste[0], e1 = liste[liste.length - 1];
+          echange = { rend: e0.rend, recoit: e1.recoit, heure: e0.heure, compte: e0.compte };
+          parent = e0.compte === "rend" ? e0.rend : e1.recoit;
+          courant = e1.recoit;
+          if (echange.rend === echange.recoit) echange = null; // aller-retour dans la journée
+        }
+        parJour.set(j, parent); echJour.set(j, echange);
       }
-      run = j + 1;
+      return { parJour, echJour };
+    }
+    // Suites de jours comptés d'affilée chez le même parent (la première et la
+    // dernière de la marge, tronquées, sont exclues).
+    function suites(parJour) {
+      const out = [];
+      for (let j = de, run = de; j <= a; j++) {
+        if (j < a && parJour.get(j + 1) === parJour.get(j)) continue;
+        if (run > de && j < a) out.push({ parent: parJour.get(j), du: run, au: j, n: j - run + 1 });
+        run = j + 1;
+      }
+      return out;
+    }
+
+    // Option fusion : la plus courte période de FUSION_MAX jours ou moins est
+    // rendue à l'autre parent (suppression des deux transitions qui l'encadrent),
+    // puis on recommence.
+    const fusionnes = new Set(), fusions = [];
+    let { parJour, echJour } = compter();
+    while (p.fusionCourtes) {
+      const c = suites(parJour).filter((x) => x.n <= FUSION_MAX).sort((x, y) => x.n - y.n || x.du - y.du)[0];
+      if (!c) break;
+      // période (entre deux transitions) de ce parent qui recouvre le plus ces jours
+      let meilleur = -1, recouvre = 0;
+      for (let i = 0; i + 1 < trans.length; i++) {
+        if (trans[i].recoit !== c.parent) continue;
+        const r = Math.min(trans[i + 1].t, (c.au + 1) * 1440) - Math.max(trans[i].t, c.du * 1440);
+        if (r > recouvre) { recouvre = r; meilleur = i; }
+      }
+      if (meilleur < 0) break;
+      trans.splice(meilleur, 2);
+      for (let x = c.du; x <= c.au; x++) fusionnes.add(x);
+      if (c.au >= debut && c.du <= fin) {
+        fusions.push({ parent: c.parent, au_profit: c.parent === "P" ? "M" : "P", du: versIso(c.du), au: versIso(c.au), jours: c.n });
+      }
+      ({ parJour, echJour } = compter());
+    }
+    fusions.sort((x, y) => (x.du < y.du ? -1 : 1));
+
+    // Périodes courtes : moins de COURT_MIN jours comptés d'affilée chez le même parent.
+    const courts = new Set(), courtes = [];
+    for (const c of suites(parJour)) {
+      if (c.n < COURT_MIN && c.au >= debut && c.du <= fin) {
+        for (let x = c.du; x <= c.au; x++) courts.add(x);
+        courtes.push({ parent: c.parent, du: versIso(c.du), au: versIso(c.au), jours: c.n });
+      }
     }
 
     const jours = [], total = { P: 0, M: 0, mois: MOIS.map(() => ({ P: 0, M: 0 })) };
@@ -320,7 +364,7 @@
       const mois = +iso.slice(5, 7) - 1;
       total[parent]++; total.mois[mois][parent]++;
       jours.push({ iso, js: jourSemaine(j), quantieme: +iso.slice(8), mois, parent, echange: echJour.get(j),
-        ferie: feries.get(j) || null, court: courts.has(j) });
+        ferie: feries.get(j) || null, court: courts.has(j), fusionne: fusionnes.has(j) && !courts.has(j) });
     }
     total.ecart = Math.abs(total.P - total.M);
 
@@ -332,7 +376,7 @@
       .filter((b) => b.fin > debut * 1440 && b.debut < (fin + 1) * 1440)
       .map((b) => Object.assign({}, b, { du: fmt(b.debut), au: fmt(b.fin) }));
 
-    return { annee, jours, total, blocs: blocsAnnee, courtes, incomplet: fin > versJour(CALENDRIER_CONNU_JUSQUA) };
+    return { annee, jours, total, blocs: blocsAnnee, courtes, fusions, incomplet: fin > versJour(CALENDRIER_CONNU_JUSQUA) };
   }
 
   /** Jours (iso) de vacances de la zone z pendant l'année. */
@@ -412,7 +456,7 @@
   }
 
   const api = {
-    JOURS, MOIS, ZONES, NOM, PLANNING_DEFAUT, COURT_MIN,
+    JOURS, MOIS, ZONES, NOM, PLANNING_DEFAUT, COURT_MIN, FUSION_MAX,
     versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance,
     normaliser, texteRegles, calculer, joursVacances, periodes, icalendar,
     urlCalendrierOfficiel, lireCalendrierOfficiel, chargerVacances,
