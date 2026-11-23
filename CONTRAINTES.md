@@ -72,14 +72,19 @@ vacances est inversé.
   (API de data.education.gouv.fr). Le dernier téléchargement est gardé dans
   le navigateur ; sans réseau ni cache, le calendrier intégré à
   `outil/core.js` (`VACANCES`, de Noël 2026-2027 à l'été 2028) sert de
-  secours. La source et la date du téléchargement sont affichées à côté du
-  choix de l'année (détail au survol).
+  secours. La source et la date des téléchargements (vacances et fériés)
+  sont affichées à côté du choix de l'année (détail au survol).
   - Les années proposées sont celles que le calendrier couvre, à partir de
     l'année en cours.
   - Dates des élèves (pas celles des enseignants) ; les ponts (Ascension) ne
     sont pas des vacances au sens des règles et sont ignorés.
   - Quand seul le début de l'été est publié, l'été est arrêté au 31 août, et
     les vacances suivantes manquent (l'éditeur l'indique).
-- **Jours fériés** : calculés (`feriesFrance`, Pâques par l'algorithme de
-  Meeus).
+- **Jours fériés** (métropole) : téléchargés à l'ouverture de l'éditeur
+  depuis le jeu de données
+  [« Jours fériés en France »](https://www.data.gouv.fr/datasets/jours-feries-en-france)
+  (API `calendrier.api.gouv.fr`), gardés en cache comme les vacances. Au-delà
+  des années publiées (2031 aujourd'hui), ou sans réseau ni cache, ils sont
+  calculés (`feriesCalcules`, Pâques par l'algorithme de Meeus). Ils sont
+  marqués en rouge dans les colonnes A, B, C du calendrier.
 - Les deux zones non choisies sont affichées **à titre indicatif**.

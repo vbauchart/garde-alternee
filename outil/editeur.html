@@ -73,6 +73,7 @@
   .bandeau b { color: var(--mauvais); }
   .bandeau ul { margin: 4px 0 0; padding-left: 20px; }
   td.vacRef { background: var(--vacRef); } td.vacInd { background: var(--vacInd); }
+  td.z.ferie { background: var(--ferie); }
   .mois th.z, .mois td.z { padding: 0; font-size: 9px; }
   .mois th.z.ref { color: var(--ink); font-weight: 800; }
   .diff::before { content: "•"; color: var(--accent); font-weight: 900; margin-right: 2px; }
@@ -158,49 +159,65 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const LMMJVSD = "LMMJVSD";
 
-// ---------------- Calendrier scolaire (data.gouv.fr) ----------------
-// Le dernier calendrier téléchargé est gardé dans le navigateur et utilisé dès
-// l'ouverture ; il est rafraîchi à chaque chargement. Sans réseau ni cache, le
-// calendrier intégré à core.js sert de secours.
+// ---------------- Données data.gouv.fr (vacances scolaires, jours fériés) ----------------
+// Le dernier téléchargement est gardé dans le navigateur et utilisé dès
+// l'ouverture ; il est rafraîchi à chaque chargement. Sans réseau ni cache,
+// core.js sert de secours (vacances intégrées, fériés calculés).
 
-const CLE_VACANCES = "garde-alternee.vacances.v1";
 const ANNEE_MIN = new Date().getFullYear(); // pas d'années passées dans le choix
-let vacancesInjoignables = false;
+const DONNEES = {
+  vacances: { cle: "garde-alternee.vacances.v1", injoignable: false,
+    url: () => G.urlCalendrierOfficiel(ANNEE_MIN - 1), charger: (d, date) => G.chargerVacances(d, date, ANNEE_MIN) },
+  feries: { cle: "garde-alternee.feries.v1", injoignable: false,
+    url: () => G.urlFeries(), charger: (d, date) => G.chargerFeries(d, date) },
+};
 
-function vacancesEnCache() {
-  try {
-    const o = JSON.parse(localStorage.getItem(CLE_VACANCES) || "null");
-    if (o) G.chargerVacances(o.lignes, o.date, ANNEE_MIN);
-  } catch (e) { /* cache illisible : calendrier intégré */ }
+function donneesEnCache() {
+  for (const src of Object.values(DONNEES)) {
+    try {
+      const o = JSON.parse(localStorage.getItem(src.cle) || "null");
+      if (o) src.charger(o.lignes, o.date);
+    } catch (e) { /* cache illisible : données de secours */ }
+  }
 }
-async function telechargerVacances() {
+async function telechargerDonnees(nom) {
+  const src = DONNEES[nom];
   try {
     const opts = typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(15000) } : {};
-    const rep = await fetch(G.urlCalendrierOfficiel(ANNEE_MIN - 1), opts);
+    const rep = await fetch(src.url(), opts);
     if (!rep.ok) throw new Error(`HTTP ${rep.status}`);
     const lignes = await rep.json(), date = new Date().toISOString().slice(0, 10);
-    if (!G.chargerVacances(lignes, date, ANNEE_MIN)) throw new Error("données inutilisables");
-    try { localStorage.setItem(CLE_VACANCES, JSON.stringify({ date, lignes })); } catch (e) { /* stockage indisponible */ }
+    if (!src.charger(lignes, date)) throw new Error("données inutilisables");
+    try { localStorage.setItem(src.cle, JSON.stringify({ date, lignes })); } catch (e) { /* stockage indisponible */ }
     if (!G.ANNEES.includes(etat.annee)) etat.annee = anneeParDefaut();
-    rendre();
   } catch (e) {
-    console.warn("Calendrier scolaire data.gouv.fr indisponible :", e.message);
-    vacancesInjoignables = true;
-    rendre();
+    console.warn(`data.gouv.fr (${nom}) indisponible :`, e.message);
+    src.injoignable = true;
   }
+  rendre();
 }
 /** L'année prochaine si elle est connue (on prépare le planning à l'avance), sinon la première connue. */
 const anneeParDefaut = () => (G.ANNEES.includes(ANNEE_MIN + 1) ? ANNEE_MIN + 1 : G.ANNEES[0]);
 const fmtIso = (iso) => iso.split("-").reverse().join("/");
 /** [texte court à côté du sélecteur d'année, infobulle] */
-const texteSource = () => (G.SOURCE_VACANCES.type === "data.gouv"
-  ? [`data.gouv.fr, ${fmtIso(G.SOURCE_VACANCES.date)}`,
-    `Calendrier scolaire officiel téléchargé depuis data.gouv.fr le ${fmtIso(G.SOURCE_VACANCES.date)}, connu jusqu'au ${fmtIso(G.CALENDRIER_CONNU_JUSQUA)}.`]
-  : [`calendrier intégré${vacancesInjoignables ? " (hors ligne)" : ""}`,
-    `Calendrier scolaire intégré à l'outil, connu jusqu'au ${fmtIso(G.CALENDRIER_CONNU_JUSQUA)}` +
-    (vacancesInjoignables ? " : data.gouv.fr injoignable." : " : téléchargement depuis data.gouv.fr en cours…")]);
+function texteSource() {
+  const v = G.SOURCE_VACANCES, f = G.SOURCE_FERIES;
+  const enCours = (src) => (src.injoignable ? " (data.gouv.fr injoignable)" : " (téléchargement en cours…)");
+  const detail = [
+    v.type === "data.gouv"
+      ? `Vacances scolaires : téléchargées depuis data.gouv.fr le ${fmtIso(v.date)}, connues jusqu'au ${fmtIso(G.CALENDRIER_CONNU_JUSQUA)}.`
+      : `Vacances scolaires : calendrier intégré, connu jusqu'au ${fmtIso(G.CALENDRIER_CONNU_JUSQUA)}${enCours(DONNEES.vacances)}.`,
+    f.type === "data.gouv"
+      ? `Jours fériés : téléchargés depuis data.gouv.fr le ${fmtIso(f.date)} (jusqu'en ${f.jusqua}, calculés au-delà).`
+      : `Jours fériés : calculés${enCours(DONNEES.feries)}.`,
+  ].join("\n");
+  const dates = [v, f].filter((x) => x.type === "data.gouv").map((x) => x.date).sort();
+  const court = !dates.length ? `données intégrées${DONNEES.vacances.injoignable ? " (hors ligne)" : ""}`
+    : `data.gouv.fr, ${fmtIso(dates[0])}${dates.length < 2 ? " (en partie)" : ""}`;
+  return [court, detail];
+}
 
-vacancesEnCache();
+donneesEnCache();
 
 // plannings[0] : planning 1 ; plannings[1] : planning 2 (facultatif, variante comparée)
 const etat = { annee: anneeParDefaut(), plannings: [G.normaliser(G.PLANNING_DEFAUT)], onglet: "calendrier" };
@@ -348,7 +365,9 @@ function rendreCalendrier(res) {
       }
       for (const z of G.ZONES) {
         const nom = vac[z].get(d.iso);
-        html += nom ? `<td class="z ${refs.has(z) ? "vacRef" : "vacInd"}" title="${esc(nom)} zone ${z}"></td>` : `<td class="z"></td>`;
+        const titre = [d.ferie, nom && `${nom} zone ${z}`].filter(Boolean).join(" · ");
+        const cls = d.ferie ? "ferie" : nom ? (refs.has(z) ? "vacRef" : "vacInd") : "";
+        html += `<td class="z${cls ? " " + cls : ""}"${titre ? ` title="${esc(titre)}"` : ""}></td>`;
       }
       html += `</tr>`;
     });
@@ -497,7 +516,8 @@ window.addEventListener("drop", (ev) => { ev.preventDefault(); const f = [...ev.
 
 restaurer();
 rendre();
-telechargerVacances();
+telechargerDonnees("vacances");
+telechargerDonnees("feries");
 </script>
 </body>
 </html>

@@ -149,8 +149,40 @@
     return true;
   }
 
-  /** Jours fériés français (Pâques par l'algorithme de Meeus). */
+  // ---------- Jours fériés ----------
+  // Calculés (secours hors ligne, et au-delà des années publiées), remplacés
+  // dans le navigateur par ceux de data.gouv.fr (chargerFeries).
+
+  let FERIES = null; // Map iso -> nom, téléchargés
+  let SOURCE_FERIES = { type: "calcul", date: null, jusqua: null }; // "calcul" ou "data.gouv"
+
+  /** API Etalab du jeu « Jours fériés en France » de data.gouv.fr (métropole, toutes les années). */
+  const urlFeries = () => "https://calendrier.api.gouv.fr/jours-feries/metropole.json";
+
+  /** { "AAAA-MM-JJ": "nom" } -> remplace le calcul pour les années publiées. false si inutilisable. */
+  function chargerFeries(donnees, date) {
+    if (!donnees || typeof donnees !== "object" || Array.isArray(donnees)) return false;
+    const m = new Map();
+    for (const [iso, nom] of Object.entries(donnees)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso) && Number.isFinite(versJour(iso)) && typeof nom === "string") m.set(iso, nom);
+    }
+    if (m.size < 10) return false;
+    FERIES = m;
+    SOURCE_FERIES = { type: "data.gouv", date: date || null, jusqua: Math.max(...[...m.keys()].map((iso) => +iso.slice(0, 4))) };
+    return true;
+  }
+
+  /** Jours fériés de l'année : téléchargés si l'année est publiée, sinon calculés. */
   function feriesFrance(annee) {
+    if (FERIES) {
+      const liste = [...FERIES].filter(([iso]) => iso.startsWith(`${annee}-`)).map(([date, nom]) => ({ date, nom }));
+      if (liste.length) return liste.sort((x, y) => (x.date < y.date ? -1 : 1));
+    }
+    return feriesCalcules(annee);
+  }
+
+  /** Jours fériés français calculés (Pâques par l'algorithme de Meeus). */
+  function feriesCalcules(annee) {
     const a = annee % 19, b = Math.floor(annee / 100), c = annee % 100;
     const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
     const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
@@ -457,7 +489,7 @@
 
   const api = {
     JOURS, MOIS, ZONES, NOM, PLANNING_DEFAUT, COURT_MIN, FUSION_MAX,
-    versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance,
+    versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance, feriesCalcules, urlFeries, chargerFeries,
     normaliser, texteRegles, calculer, joursVacances, periodes, icalendar,
     urlCalendrierOfficiel, lireCalendrierOfficiel, chargerVacances,
   };
@@ -467,6 +499,7 @@
     ANNEES: { get: () => ANNEES, enumerable: true },
     CALENDRIER_CONNU_JUSQUA: { get: () => CALENDRIER_CONNU_JUSQUA, enumerable: true },
     SOURCE_VACANCES: { get: () => SOURCE_VACANCES, enumerable: true },
+    SOURCE_FERIES: { get: () => SOURCE_FERIES, enumerable: true },
   });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else global.Garde = api;
