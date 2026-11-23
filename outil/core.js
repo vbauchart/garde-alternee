@@ -18,6 +18,7 @@
   const ZONES = ["A", "B", "C"];
   const NOM = { P: "Papa", M: "Maman" };
   const JOUR_MS = 86400000;
+  const COURT_MIN = 3; // une période chez un parent de moins de 3 jours est signalée
 
   const PLANNING_DEFAUT = {
     nom: "Planning 1",
@@ -149,7 +150,9 @@
   /**
    * Planning de l'année `annee` selon la configuration `p`.
    * Renvoie { annee, jours: [{iso, js, quantieme, mois, parent, echange, ferie}],
-   *           total: {P, M, ecart, mois}, blocs, incomplet }.
+   *           total: {P, M, ecart, mois}, blocs, courtes, incomplet }.
+   * `courtes` : périodes de moins de COURT_MIN jours comptés chez un même
+   * parent ({parent, du, au, jours}) ; les jours concernés ont `court: true`.
    *
    * Le temps est mesuré en minutes (jour * 1440 + heure). Qui a les enfants à
    * l'instant t : le bloc de vacances qui contient t, sinon la semaine hors
@@ -217,9 +220,10 @@
       echanges.get(j).push({ rend: avant, recoit: apres, heure: r.heure, compte: r.compte });
     }
 
-    const jours = [], total = { P: 0, M: 0, mois: MOIS.map(() => ({ P: 0, M: 0 })) };
-    for (let j = debut; j <= fin; j++) {
-      const iso = versIso(j), liste = echanges.get(j);
+    // Parent compté chaque jour, marge comprise (pour les périodes à cheval sur l'année).
+    const parJour = new Map(), echJour = new Map();
+    for (let j = de; j <= a; j++) {
+      const liste = echanges.get(j);
       let parent, echange = null;
       if (liste) {
         const e0 = liste[0], e1 = liste[liste.length - 1];
@@ -227,9 +231,29 @@
         parent = e0.compte === "rend" ? e0.rend : e1.recoit;
         if (echange.rend === echange.recoit) echange = null; // aller-retour dans la journée
       } else parent = parentA(j * 1440);
+      parJour.set(j, parent); echJour.set(j, echange);
+    }
+
+    // Périodes courtes : moins de COURT_MIN jours comptés d'affilée chez le même
+    // parent (la première et la dernière période de la marge, tronquées, sont ignorées).
+    const courts = new Set(), courtes = [];
+    for (let j = de, run = de; j <= a; j++) {
+      if (j < a && parJour.get(j + 1) === parJour.get(j)) continue;
+      const n = j - run + 1;
+      if (run > de && j < a && n < COURT_MIN && j >= debut && run <= fin) {
+        for (let x = run; x <= j; x++) courts.add(x);
+        courtes.push({ parent: parJour.get(j), du: versIso(run), au: versIso(j), jours: n });
+      }
+      run = j + 1;
+    }
+
+    const jours = [], total = { P: 0, M: 0, mois: MOIS.map(() => ({ P: 0, M: 0 })) };
+    for (let j = debut; j <= fin; j++) {
+      const iso = versIso(j), parent = parJour.get(j);
       const mois = +iso.slice(5, 7) - 1;
       total[parent]++; total.mois[mois][parent]++;
-      jours.push({ iso, js: jourSemaine(j), quantieme: +iso.slice(8), mois, parent, echange, ferie: feries.get(j) || null });
+      jours.push({ iso, js: jourSemaine(j), quantieme: +iso.slice(8), mois, parent, echange: echJour.get(j),
+        ferie: feries.get(j) || null, court: courts.has(j) });
     }
     total.ecart = Math.abs(total.P - total.M);
 
@@ -241,7 +265,7 @@
       .filter((b) => b.fin > debut * 1440 && b.debut < (fin + 1) * 1440)
       .map((b) => Object.assign({}, b, { du: fmt(b.debut), au: fmt(b.fin) }));
 
-    return { annee, jours, total, blocs: blocsAnnee, incomplet: fin > versJour(CALENDRIER_CONNU_JUSQUA) };
+    return { annee, jours, total, blocs: blocsAnnee, courtes, incomplet: fin > versJour(CALENDRIER_CONNU_JUSQUA) };
   }
 
   /** Jours (iso) de vacances de la zone z pendant l'année. */
@@ -321,7 +345,7 @@
   }
 
   const api = {
-    JOURS, MOIS, ZONES, NOM, ANNEES, VACANCES, PLANNING_DEFAUT, CALENDRIER_CONNU_JUSQUA,
+    JOURS, MOIS, ZONES, NOM, ANNEES, VACANCES, PLANNING_DEFAUT, CALENDRIER_CONNU_JUSQUA, COURT_MIN,
     versJour, versIso, jourSemaine, semaineIso, heureNorm, feriesFrance,
     normaliser, texteRegles, calculer, joursVacances, periodes, icalendar,
   };
